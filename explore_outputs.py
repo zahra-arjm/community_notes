@@ -14,8 +14,6 @@ else:
 print("We are in :" + os.getcwd())
 
 
-
-df = pd.read_parquet('./rated_notes_compact.parquet', engine='auto')
 # use parquet format for faster loading
 scored_notes = pd.read_parquet('./scored_notes.parquet', engine='auto')
 
