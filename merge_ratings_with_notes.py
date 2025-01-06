@@ -1,3 +1,10 @@
+'''
+Code to analyse community notes
+- assumes you have scores notes already
+- Tom uses the conda environment stored in communitynotes.yml
+'''
+
+
 import pandas as pd
 import os
 import socket #to get host machine identity
