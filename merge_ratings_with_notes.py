@@ -32,14 +32,18 @@ df = pd.merge(scored_notes[scored_notes['finalRatingStatus'] != 'NEEDS_MORE_RATI
 # check columns and keep the useful ones
 print(df.columns)
 
+# rename duplicated columns
+df.rename(columns={'classification_x': 'classification', 'createdAtMillis_x': 'createdAtMillis'},
+            inplace=True)
+
 # # my suggestions for keeping columns
 df_short = df[
     ['noteId',
     'finalRatingStatus',
     'firstTag',
     'secondTag',
-    'classification_x', # what the writer thinks about the original tweet
-    'createdAtMillis_x',
+    'classification', # what the writer thinks about the original tweet
+    'createdAtMillis',
     'numRatings',
     'noteTopic', # most of them are nan, but there are 3 unique topics
     'topicNoteConfident', # seems to be if the model is confident about topic label
@@ -64,6 +68,7 @@ df_short = df[
     'summary',
     'isMediaNote',]
 ]
+
 
 df.to_parquet('rated_notes.parquet')
 df_short.to_parquet('rated_notes_compact.parquet')
