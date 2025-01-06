@@ -5,7 +5,7 @@ import socket #to get host machine identity
 print("identifying host machine")
 #test which machine we are on and set working directory
 if 'tom' in socket.gethostname():
-    print('Tom! please set the path first. The code may run anyway')
+    os.chdir('/home/tom/Desktop/communitynotes/data2024-12-19')
 elif 'zahra' in socket.gethostname():
     os.chdir('/home/zahra/Documents/Tom_Stafford/Community_Notes/analysis/community_notes')
 else:
