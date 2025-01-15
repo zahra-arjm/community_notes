@@ -8,13 +8,13 @@ helpful = notes\
     [(notes['noteTopic'].values == 'GazaConflict') \
          & (notes['language'] == 'en') \
          & (notes['finalRatingStatus'] == 'CURRENTLY_RATED_HELPFUL')]\
-    [['summary', 'finalRatingStatus']].sample(n=100)
+    [['summary', 'finalRatingStatus', 'tweetId']].sample(n=100, random_state=2025)
 
 notHelpful = notes\
     [(notes['noteTopic'].values == 'GazaConflict') \
          & (notes['language'] == 'en') \
          & (notes['finalRatingStatus'] == 'CURRENTLY_RATED_NOT_HELPFUL')]\
-    [['summary', 'finalRatingStatus']].sample(n=100)
+    [['summary', 'finalRatingStatus', 'tweetId']].sample(n=100, random_state=2025)
 
 df = pd.concat([helpful, notHelpful])
 
