@@ -18,5 +18,8 @@ notHelpful = notes\
 
 df = pd.concat([helpful, notHelpful])
 
+# change tweedId type to show the complete number
+df['tweetId'] = df['tweetId'].astype(int)
+
 df.to_csv('Gaza_notes_200.csv')
 
