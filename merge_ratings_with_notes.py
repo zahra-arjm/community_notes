@@ -50,6 +50,9 @@ df_short = df[
     'secondTag',
     'classification', # what the writer thinks about the original tweet
     'createdAtMillis',
+    'createdAt',
+    'createdAtYear',
+    'createdAtMonth',
     'numRatings',
     'noteTopic', # most of them are nan, but there are 3 unique topics
     'topicNoteConfident', # seems to be if the model is confident about topic label
