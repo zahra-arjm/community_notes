@@ -26,54 +26,72 @@ scored_notes = pd.read_parquet('./scored_notes.parquet', engine='auto')
 
 # with open('./notes-00000.tsv', 'r') as n:
 #     notes = pd.read_csv(n, sep='\t')
-    
+
 notes = pd.read_parquet('./notes.parquet', engine='auto')
+
+note_history = pd.read_parquet('./note_status_history.parquet', engine='auto')
 
 # print(scored_notes['finalRatingStatus'].unique())
 
-#  filter the enough rated notes and merge the two dataframes
-df = pd.merge(scored_notes[scored_notes['finalRatingStatus'] != 'NEEDS_MORE_RATINGS'],
-            notes, how='left', on='noteId')
+#  merge the two dataframes
+df = pd.merge(scored_notes, notes, how='left', on='noteId')
+
+# now merge with the note history data
+df = pd.merge(df, note_history, how='left', on='noteId')
+
 
 # check columns and keep the useful ones
-print(df.columns)
+# print(df.columns[:20])
 
-# rename duplicated columns
-df.rename(columns={'classification_x': 'classification', 'createdAtMillis_x': 'createdAtMillis'},
-            inplace=True)
+# rename duplicate columns
+df.rename(columns={'noteAuthorParticipantId_x': 'noteAuthorParticipantId'}, inplace=True)
 
 # # my suggestions for keeping columns
 df_short = df[
     ['noteId',
     'finalRatingStatus',
-    'firstTag',
-    'secondTag',
-    'classification', # what the writer thinks about the original tweet
+    # 'firstTag',
+    # 'secondTag',
+    # 'classification', # what the writer thinks about the original tweet
     'createdAtMillis',
     'createdAt',
     'createdAtYear',
     'createdAtMonth',
     'numRatings',
-    'noteTopic', # most of them are nan, but there are 3 unique topics
-    'topicNoteConfident', # seems to be if the model is confident about topic label
+    # 'noteTopic', # most of them are nan, but there are 3 unique topics
+    # 'topicNoteConfident', # seems to be if the model is confident about topic label
     'noteAuthorParticipantId',
     'tweetId',
+    'firstNonNMRStatus',
+    'currentStatus',
+    'mostRecentNonNMRStatus',
+    'lockedStatus',
+    'coreNoteIntercept', 'coreNoteFactor1', 'coreRatingStatus',
+    'decidedBy', 
+    'expansionNoteIntercept', 'expansionNoteFactor1', 'expansionRatingStatus',
+    'coverageNoteIntercept', 'coverageNoteFactor1', 'coverageRatingStatus',
+    'coreNoteInterceptMin', 'coreNoteInterceptMax',
+    'expansionNoteInterceptMin', 'expansionNoteInterceptMax',
+    'coverageNoteInterceptMin', 'coverageNoteInterceptMax',
+    'groupNoteIntercept', 'groupNoteFactor1', 'groupRatingStatus',
+    'groupNoteInterceptMax', 'groupNoteInterceptMin', 
+    'modelingGroup',
     # 'believable', deprecated!
     # 'harmful', 
     # 'validationDifficulty',
-    'misleadingOther', 
-    'misleadingFactualError',
-    'misleadingManipulatedMedia', 
-    'misleadingOutdatedInformation',
-    'misleadingMissingImportantContext', 
-    'misleadingUnverifiedClaimAsFact',
-    'misleadingSatire', 
-    'notMisleadingOther',
-    'notMisleadingFactuallyCorrect',
-    'notMisleadingOutdatedButNotWhenWritten', 
-    'notMisleadingClearlySatire',
-    'notMisleadingPersonalOpinion', 
-    'trustworthySources',
+    # 'misleadingOther', 
+    # 'misleadingFactualError',
+    # 'misleadingManipulatedMedia', 
+    # 'misleadingOutdatedInformation',
+    # 'misleadingMissingImportantContext', 
+    # 'misleadingUnverifiedClaimAsFact',
+    # 'misleadingSatire', 
+    # 'notMisleadingOther',
+    # 'notMisleadingFactuallyCorrect',
+    # 'notMisleadingOutdatedButNotWhenWritten', 
+    # 'notMisleadingClearlySatire',
+    # 'notMisleadingPersonalOpinion', 
+    # 'trustworthySources',
     'summary',
     'isMediaNote',]
 ]
