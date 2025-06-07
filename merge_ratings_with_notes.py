@@ -44,7 +44,8 @@ df = pd.merge(df, note_history, how='left', on='noteId')
 # print(df.columns[:20])
 
 # rename duplicate columns
-df.rename(columns={'noteAuthorParticipantId_x': 'noteAuthorParticipantId'}, inplace=True)
+df.rename(columns={'noteAuthorParticipantId_x': 'noteAuthorParticipantId',
+                   'classification_x': 'classification'}, inplace=True)
 
 # # my suggestions for keeping columns
 df_short = df[
@@ -52,7 +53,7 @@ df_short = df[
     'finalRatingStatus',
     # 'firstTag',
     # 'secondTag',
-    # 'classification', # what the writer thinks about the original tweet
+    'classification', # what the writer thinks about the original tweet
     'createdAtMillis',
     'createdAt',
     'createdAtYear',
