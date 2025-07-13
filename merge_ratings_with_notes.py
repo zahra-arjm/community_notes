@@ -29,7 +29,8 @@ scored_notes = pd.read_parquet('./scored_notes.parquet', engine='auto')
 
 notes = pd.read_parquet('./notes.parquet', engine='auto')
 
-note_history = pd.read_parquet('./note_status_history.parquet', engine='auto')
+with open('./noteStatusHistory-00000.tsv', 'r') as n:
+    note_history = pd.read_csv(n, sep='\t')
 
 # print(scored_notes['finalRatingStatus'].unique())
 
