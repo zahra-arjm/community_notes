@@ -24,9 +24,6 @@ print("We are in :" + os.getcwd())
 # use parquet format for faster loading
 scored_notes = pd.read_parquet('./scored_notes.parquet', engine='auto')
 
-# with open('./notes-00000.tsv', 'r') as n:
-#     notes = pd.read_csv(n, sep='\t')
-
 notes = pd.read_parquet('./notes.parquet', engine='auto')
 
 with open('./noteStatusHistory-00000.tsv', 'r') as n:
