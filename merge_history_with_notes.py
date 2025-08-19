@@ -1,6 +1,6 @@
 '''
 Code to analyse community notes
-- assumes you have scores notes already
+
 - Tom uses the conda environment stored in communitynotes.yml
 '''
 
