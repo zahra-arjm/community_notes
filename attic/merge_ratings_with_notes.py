@@ -22,11 +22,11 @@ print("We are in :" + os.getcwd())
 
 
 # use parquet format for faster loading
-scored_notes = pd.read_parquet('./scored_notes.parquet', engine='auto')
+scored_notes = pd.read_parquet('./data2026proc/scored_notes.parquet', engine='auto')
 
-notes = pd.read_parquet('./notes.parquet', engine='auto')
+notes = pd.read_parquet('./data2026proc/notes.parquet', engine='auto')
 
-with open('./noteStatusHistory-00000.tsv', 'r') as n:
+with open('./data2026raw/noteStatusHistory-00000.tsv', 'r') as n:
     note_history = pd.read_csv(n, sep='\t')
 
 # print(scored_notes['finalRatingStatus'].unique())
@@ -97,5 +97,5 @@ df_short = df[
 
 
 # df.to_parquet('rated_notes.parquet')
-df_short.to_parquet('rated_notes_compact.parquet')
+df_short.to_parquet('./data2026post/rated_notes_compact.parquet')
 
