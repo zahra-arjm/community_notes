@@ -41,6 +41,10 @@ df = pd.merge(df, note_history, how='left', on='noteId')
 # check columns and keep the useful ones
 # print(df.columns[:20])
 
+# # find intercept columns to see where intercepts are stored for each algorithm
+# intercept_cols = df.columns[df.columns.str.match('.*NoteIntercept$')]
+# print(intercept_cols)
+
 # rename duplicate columns
 df.rename(columns={'noteAuthorParticipantId_x': 'noteAuthorParticipantId',
                    'classification_x': 'classification'}, inplace=True)
@@ -70,6 +74,7 @@ df_short = df[
     'expansionNoteIntercept', 'expansionNoteFactor1', 'expansionRatingStatus',
     'coverageNoteIntercept', 'coverageNoteFactor1', 'coverageRatingStatus',
     'coreNoteInterceptMin', 'coreNoteInterceptMax',
+    'coreWithTopicsNoteFactor1', 'coreWithTopicsNoteIntercept', 'coreWithTopicsNoteInterceptMax',
     'expansionNoteInterceptMin', 'expansionNoteInterceptMax',
     'coverageNoteInterceptMin', 'coverageNoteInterceptMax',
     'groupNoteIntercept', 'groupNoteFactor1', 'groupRatingStatus',
