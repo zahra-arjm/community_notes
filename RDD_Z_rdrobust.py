@@ -269,3 +269,46 @@ rdplot(y=y, x=x, c=c, kernel='triangular', p=1,
 }
 
 '''
+
+
+#Next, manipulation test/density smoothness at cutoff 
+
+'''if people can select to be just above cutoff then density will not be smooth
+(think the pass grade on an exam)'''
+
+
+#pip install rddensity
+
+from rddensity import rddensity
+dens = rddensity(X=x, c=0.4)
+
+print(dens.test)   # T-stat and p-value; three rows for VCE variants (conventional / TW / jackknife)
+print(dens.hat)    # left/right density point estimates and the jump
+print(dens.h)      # bandwidths h_L, h_R
+print(dens.n)      # effective N on each side within bandwidth
+print(dens.bino)   # binomial-count local test at the cutoff (defaults on)
+
+print([a for a in dir(dens) if not a.startswith('_')])
+
+
+from rddensity import rdplotdensity
+
+import numpy as np
+mask = (x >= 0.3) & (x <= 0.5)
+x_near = x[mask]
+
+# Direct matplotlib histogram — most informative
+import matplotlib.pyplot as plt
+plt.hist(x_near, bins=50, edgecolor='black')
+plt.axvline(0.4, color='red', linestyle='--')
+plt.xlabel('score'); plt.ylabel('count')
+plt.show()
+
+# Donut RDD
+mask = (x < 0.395) | (x > 0.405)
+r_donut = rdrobust(y=y[mask], x=x[mask], c=0.4)
+print(r_donut)
+
+# Note at 0
+print((x == 0).sum(), "notes at exactly 0")
+print((x == 0).mean() * 100, "% of full sample")
