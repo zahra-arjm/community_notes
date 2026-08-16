@@ -104,7 +104,7 @@ print("- - - - - - - - OLS RDD regression")
 # prepare the common vars for all models
 # RDD 
 cutoff = 0.4 #threshold at which a note is rated as helpful
-bandwidth = 0.05 #window around cutoff
+bandwidth = 0.087 #window around cutoff
 # keep only notes with enough rating
 first_notes = first_notes[first_notes['rating_group'] == 1]
 
@@ -189,3 +189,83 @@ from rdrobust import rdrobust, rdplot
 
 fn = first_notes.copy()
 fn = fn[mask_alignment]   # optional; mirror your current choice
+
+fn['intercept'] = pd.to_numeric(fn['intercept'], errors='coerce')
+fn = fn.dropna(subset=['intercept', 'if_written_again']) #no effect, no nans?
+
+y = fn['if_written_again'].astype(int).to_numpy()
+x = fn['intercept'].to_numpy(dtype=float)
+c = 0.4
+
+# --- Headline: MSE-optimal bandwidth, triangular kernel, local linear (defaults) ---
+fit = rdrobust(y=y, x=x, c=c)
+print(fit)                              # full CCT-style table
+h_mse = float(fit.bws.iloc[0, 0])       # selected h (left; symmetric by default)
+print(f"\nMSE-optimal h = {h_mse:.4f}")
+
+#report the bias-corrected point estimate with the robust 95% CI
+print(f"\nBias-corrected point estimate: {fit.coef.iloc[1, 0]:.4f}  "
+      f"95% CI [{fit.ci.iloc[2, 0]:.4f}, {fit.ci.iloc[2, 1]:.4f}]")
+
+# --- Bandwidth sensitivity: h/2, h, 2h ---
+# Report bias-corrected point + robust 95% CI (rows 1 and 2 of coef/ci).
+print("\nBandwidth sensitivity (bias-corrected point, robust 95% CI):")
+h_mse = float(fit.bws.iloc[0, 0])
+b_mse = float(fit.bws.iloc[1, 0])   # b lives in row 1 of bws
+for mult in (0.5, 1.0, 2.0):
+    h=h_mse*mult
+    b= b_mse*mult # b and h covary so that rho stays fixed (as dervied from intial fit)
+    r = rdrobust(y=y, x=x, c=c,
+                 h=h, b=b)
+    tau  = float(r.coef.iloc[0, 0]) # note that tau is for the conventional model
+    lo   = float(r.ci.iloc[2, 0]) #but the CI is for the robust model
+    hi   = float(r.ci.iloc[2, 1])
+    nL, nR = int(r.N_h[0]), int(r.N_h[1])
+    print(f"  h = {h:.4f} ({mult:.1f}x)  tau = {tau:+.4f}  "
+          f"95% CI [{lo:+.4f}, {hi:+.4f}]  N_L/N_R = {nL}/{nR}")
+
+# --- Paper figure: bin-scatter with local-linear fits either side ---
+rdplot(y=y, x=x, c=c, kernel='triangular', p=1,
+       title='RDD: publication threshold at 0.4',
+       x_label='note intercept (current score)',
+       y_label='P(author writes again)')
+
+'''Mephi suggested text "At the MSE-optimal bandwidth we estimate τ̂ = 6.3pp in the probability of writing a second note (conventional local-linear estimator; robust bias-corrected 95% CI [+1.0, +11.1], p = 0.02)."
+'''
+
+#references for this method
+'''
+@article{calonico2014robust,
+  title   = {Robust Nonparametric Confidence Intervals for Regression-Discontinuity Designs},
+  author  = {Calonico, Sebastian and Cattaneo, Matias D. and Titiunik, Rocio},
+  journal = {Econometrica},
+  volume  = {82},
+  number  = {6},
+  pages   = {2295--2326},
+  year    = {2014},
+  doi     = {10.3982/ECTA11757}
+}
+
+@article{calonico2018effect,
+  title   = {On the Effect of Bias Estimation on Coverage Accuracy in Nonparametric Inference},
+  author  = {Calonico, Sebastian and Cattaneo, Matias D. and Farrell, Max H.},
+  journal = {Journal of the American Statistical Association},
+  volume  = {113},
+  number  = {522},
+  pages   = {767--779},
+  year    = {2018},
+  doi     = {10.1080/01621459.2017.1285776}
+}
+
+@article{calonico2014rdrobust,
+  title   = {Robust Data-Driven Inference in the Regression-Discontinuity Design},
+  author  = {Calonico, Sebastian and Cattaneo, Matias D. and Titiunik, Rocio},
+  journal = {The Stata Journal},
+  volume  = {14},
+  number  = {4},
+  pages   = {909--946},
+  year    = {2014},
+  doi     = {10.1177/1536867X1401400413}
+}
+
+'''
