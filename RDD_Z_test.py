@@ -136,7 +136,25 @@ print(f"Number of control units: {data['treatment'].count() - data['treatment'].
 # original
 rdd_model_formula = 'outcome_variable ~ running_variable_centered * treatment'
 
-rdd_model = smf.ols(formula=rdd_model_formula, data=data).fit()
+
+# Without data sanitisation this doesn't run
+if False:
+    rdd_model = smf.ols(formula=rdd_model_formula, data=data).fit()
+
+
+# data inspection
+data['running_variable_centered'].dtype # dtype('O') <- problem!
+
+# but each individual value is a float
+data['running_variable_centered'].apply(type).value_counts()
+
+# let's just convert to float
+data = data.astype({'running_variable_centered': float})
+
+
+# # assuming the model runs you can run the rest
+
+
 
 # The coefficient for 'treatment' is the estimated effect at the cutoff.
 estimated_effect = rdd_model.params['treatment']
