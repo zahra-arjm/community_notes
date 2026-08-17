@@ -259,7 +259,6 @@ print(f"T-statistic for treatment: {t_statistic_treatment:.4f}")
 # endregion
 
 
-
 # region rdrobust regression
 
 print("- - - - - - - - rdrobust regression")
@@ -269,7 +268,6 @@ print("- - - - - - - - rdrobust regression")
 
 
 fn = first_notes.copy()
-fn = fn[mask_alignment]   # optional; mirror your current choice
 
 fn['intercept'] = pd.to_numeric(fn['intercept'], errors='coerce')
 fn = fn.dropna(subset=['intercept', 'if_written_again']) #no effect, no nans?
