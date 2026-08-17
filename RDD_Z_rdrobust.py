@@ -30,7 +30,7 @@ plotloc = 'plots' #subfolder to save plots
 
 # -------- functions ------
 
-def get_first_notes(rated, note_from, note_to, follow_up_from, follow_up_to,cutoff):
+def get_first_notes(rated, note_from, note_to, cutoff):
     '''function to define data for analysis - running variable, outcome variable, sample defined by date'''
 
     def model_to_column(s):
@@ -38,12 +38,10 @@ def get_first_notes(rated, note_from, note_to, follow_up_from, follow_up_to,cuto
         base = s.split("Model")[0]
         return base[:1].lower() + base[1:] + "NoteIntercept"
 
-    # Restricting our analysis to notes after 2024
-    rated_2024 = rated[(rated.createdAt >= note_from) &
-                        (rated.createdAt <= note_to)]
     # cap our data where we look for First Notes
-    rated = rated[(rated.createdAt >= follow_up_from) &
-                        (rated.createdAt <= follow_up_to)]
+    # Zahra ! I decided the next line wasn't needed because we have the full delimiting of Notes done after the group by
+    #rated = rated[(rated.createdAt >= note_from) &
+    #                    (rated.createdAt <= note_to)]
     # Find the first note written by each author, and if that author goes on to write another note
     first_notes = rated.groupby('noteAuthorParticipantId')\
         [['createdAt', 'finalRatingStatus', 'numRatings', 'rating_group',
@@ -52,10 +50,18 @@ def get_first_notes(rated, note_from, note_to, follow_up_from, follow_up_to,cuto
         'coreWithTopicsNoteFactor1', 'coreWithTopicsNoteIntercept', 'coreWithTopicsNoteInterceptMax',
         'classification']]\
         .first().reset_index()
+    print("Now we have " + str(len(first_notes)) + " first time note authors (all time)")
     # Restricting our analysis to authors who joined in 2024 or 2025 
-    first_notes = first_notes[(first_notes.createdAt >= pd.Timestamp(2024, 1, 1)) &
-                            (first_notes.createdAt < pd.Timestamp(2026, 1, 1))]
+    first_notes = first_notes[(first_notes.createdAt >= note_from) &
+                            (first_notes.createdAt <= note_to)]
+
+    print("Now we have " + str(len(first_notes)) + " first time note authors " + note_from.strftime("%Y-%m-%d") + " to " + note_to.strftime("%Y-%m-%d"))
+    
     # define outcome variable
+
+    # Restricting our analysis to notes after 2024
+    rated_2024 = rated[(rated.createdAt >= pd.Timestamp(2024,1,1))]
+
     have_another_note = rated_2024[rated_2024.groupby('noteAuthorParticipantId').cumcount() >= 2]\
         ['noteAuthorParticipantId'].to_list()
 
@@ -65,8 +71,12 @@ def get_first_notes(rated, note_from, note_to, follow_up_from, follow_up_to,cuto
     first_notes = first_notes[first_notes['decidedBy']\
         .isin(['CoreModel (v1.1)', 'ExpansionModel (v1.1)', 'CoreWithTopicsModel (v1.1)'])]
     # first_notes = first_notes[first_notes['decidedBy'].isin(['CoreModel (v1.1)'])]
+    print("Now we have " + str(len(first_notes)) + " notes written by the 3 major algorithms")
+
     # remove NNNs
     first_notes = first_notes[first_notes['classification'] != 'NOT_MISLEADING']
+
+    print("Now we have " + str(len(first_notes)) + " classified as NOT MISLEADING")
 
     # adding intercept fro them deciding algorithm
     cols = first_notes["decidedBy"].apply(model_to_column)
@@ -138,24 +148,21 @@ def robust_rdd(x,y,c):
 # First let's inmport the data and count how many notes we have
 rated = pd.read_parquet('./data2026post/' + 'rated_notes_compact.parquet', engine='auto')
 # check size
-len(rated) # 2747570 for 2026 data (was 1,946,619 for 2025 data)
-# For RDD we need to remove the notes which don't have enough rating to be helpful
+print("Imported data for " + str(len(rated)) + " notes") # 2747570 for 2026 data (was 1,946,619 for 2025 data)
+# For RDD we need to remove the notes which don't have enough rating to be helpful, so marking this now
 rated['rating_group'] = np.where(rated['numRatings'] >= 5,1, 0)
 # proportion of Notes decided by each algorithm
 rated[rated['rating_group'] == 1]['decidedBy'].value_counts(normalize=True)
 
 
-# define timeranges 
-note_from = pd.Timestamp(2024, 1, 1)
+# define timeranges for Author's first created note
+note_from = pd.Timestamp(2025, 1, 1)
 note_to = pd.Timestamp(2026, 6, 1)
-follow_up_from = pd.Timestamp(2024, 1, 1)
-follow_up_to = pd.Timestamp(2026, 6, 1)
-
-
+#(follow up can be at any point)
 
 # process data to produce running var and outcome var
 cutoff = 0.4 #threshold at which a note is rated as helpful, needed to check for status alignment
-first_notes = get_first_notes(rated, note_from, note_to, follow_up_from, follow_up_to,cutoff)
+first_notes = get_first_notes(rated, note_from, note_to, cutoff)
 
 
 # endregion
@@ -265,12 +272,11 @@ print("- - - - - - - - rdrobust regression")
 
 # pip install rdrobust # or update conda env
 
+fn = first_notes.copy() #same data as for OLS
 
-
-fn = first_notes.copy()
-
-fn['intercept'] = pd.to_numeric(fn['intercept'], errors='coerce')
-fn = fn.dropna(subset=['intercept', 'if_written_again']) #no effect, no nans?
+# I don't believe these lines operate
+#fn['intercept'] = pd.to_numeric(fn['intercept'], errors='coerce')
+#fn = fn.dropna(subset=['intercept', 'if_written_again']) #no effect, no nans?
 
 y = fn['if_written_again'].astype(int).to_numpy()
 x = fn['intercept'].to_numpy(dtype=float)
@@ -288,7 +294,7 @@ STEM = 'RDDrobust_scatter'
 STEM = os.path.join(plotloc, STEM)
 
 out = rdplot(y=y, x=x, c=c, kernel='triangular', p=1, h=0.35,
-             binselect='es', ci=95,
+             binselect='es',
              title='RDD: publication threshold at 0.4',
              x_label='note intercept (current score)',
              y_label='P(author writes again)')
@@ -523,7 +529,21 @@ print(f"sample-wide: {base_all:.3%}, local-untreated: {base_local:.3%}")
 
 # region date split sensisitivty check
 
+# define timeranges 
+note_from = pd.Timestamp(2026, 4, 1)
+note_to = pd.Timestamp(2026, 6, 1) #up to the march 2025 change
+follow_up_from = pd.Timestamp(2024, 1, 1)
+follow_up_to = pd.Timestamp(2026, 6, 1) #but follow up can be any point
 
+# process data to produce running var and outcome var
+cutoff = 0.4 #threshold at which a note is rated as helpful, needed to check for status alignment
+fn = get_first_notes(rated, note_from, note_to, follow_up_from, follow_up_to,cutoff)
 
+y = fn['if_written_again'].astype(int).to_numpy()
+x = fn['intercept'].to_numpy(dtype=float)
+c = 0.4
+
+# --- Headline: MSE-optimal bandwidth, triangular kernel, local linear (defaults) ---
+robust_rdd(x,y,c)
 
 # endregion
