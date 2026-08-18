@@ -150,6 +150,7 @@ rated = pd.read_parquet('./data2026post/' + 'rated_notes_compact.parquet', engin
 # check size
 print("Imported data for " + str(len(rated)) + " notes") # 2747570 for 2026 data (was 1,946,619 for 2025 data)
 # For RDD we need to remove the notes which don't have enough rating to be helpful, so marking this now
+'''Zahra: I wanted to check which algorithms were used most often. 5 used to be the threshold for getting published if intercept and factor were in the range. If I did not use this criteria, some other algorithms became the top ones (after the core algorithm, of course) which did not have notes eligible for getting published.'''
 rated['rating_group'] = np.where(rated['numRatings'] >= 5,1, 0)
 # proportion of Notes decided by each algorithm
 rated[rated['rating_group'] == 1]['decidedBy'].value_counts(normalize=True)
