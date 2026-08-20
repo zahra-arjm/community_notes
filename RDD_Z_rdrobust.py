@@ -42,6 +42,7 @@ def get_first_notes(rated, note_from, note_to, cutoff):
     # Zahra ! I decided the next line wasn't needed because we have the full delimiting of Notes done after the group by
     #rated = rated[(rated.createdAt >= note_from) &
     #                    (rated.createdAt <= note_to)]
+    ## UPDATE, I agree. I put it to check if we get the same results by capping
     # Find the first note written by each author, and if that author goes on to write another note
     first_notes = rated.groupby('noteAuthorParticipantId')\
         [['createdAt', 'finalRatingStatus', 'numRatings', 'rating_group',
@@ -70,13 +71,13 @@ def get_first_notes(rated, note_from, note_to, cutoff):
     # filter to only notes written by the 3 major algorithms
     first_notes = first_notes[first_notes['decidedBy']\
         .isin(['CoreModel (v1.1)', 'ExpansionModel (v1.1)', 'CoreWithTopicsModel (v1.1)'])]
-    # first_notes = first_notes[first_notes['decidedBy'].isin(['CoreModel (v1.1)'])]
+    
     print("Now we have " + str(len(first_notes)) + " notes written by the 3 major algorithms")
 
     # remove NNNs
     first_notes = first_notes[first_notes['classification'] != 'NOT_MISLEADING']
-
-    print("Now we have " + str(len(first_notes)) + " classified as NOT MISLEADING")
+    ## UPDATE, NNNs are not misleading, the remainder are classified as misleading
+    print("Now we have " + str(len(first_notes)) + " notes classified as MISLEADING")
 
     # adding intercept fro them deciding algorithm
     cols = first_notes["decidedBy"].apply(model_to_column)
@@ -151,6 +152,7 @@ rated = pd.read_parquet('./data2026post/' + 'rated_notes_compact.parquet', engin
 print("Imported data for " + str(len(rated)) + " notes") # 2747570 for 2026 data (was 1,946,619 for 2025 data)
 # For RDD we need to remove the notes which don't have enough rating to be helpful, so marking this now
 '''Zahra: I wanted to check which algorithms were used most often. 5 used to be the threshold for getting published if intercept and factor were in the range. If I did not use this criteria, some other algorithms became the top ones (after the core algorithm, of course) which did not have notes eligible for getting published.'''
+## UPDATE Should we do it any other way if splitting notes (removing notes with less than 10 rating)? I don't think so. 
 rated['rating_group'] = np.where(rated['numRatings'] >= 5,1, 0)
 # proportion of Notes decided by each algorithm
 rated[rated['rating_group'] == 1]['decidedBy'].value_counts(normalize=True)
