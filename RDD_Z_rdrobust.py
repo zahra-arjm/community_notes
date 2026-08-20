@@ -440,7 +440,7 @@ fig.savefig(f'{STEM}_mpl.pdf', bbox_inches='tight')   # vector, for the paper
 
 #pip install rddensity
 
-dens = rddensity(X=x, c=0.4)
+dens = rddensity(X=x, c=0.4, binoW=0.02) # binoW forces window to be 0.38 to 0.42, which is a stricter test of balance around threshold
 
 print(dens.test)   # T-stat and p-value; three rows for VCE variants (conventional / TW / jackknife)
 print(dens.hat)    # left/right density point estimates and the jump
