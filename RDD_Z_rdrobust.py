@@ -38,11 +38,6 @@ def get_first_notes(rated, note_from, note_to, cutoff):
         base = s.split("Model")[0]
         return base[:1].lower() + base[1:] + "NoteIntercept"
 
-    # cap our data where we look for First Notes
-    # Zahra ! I decided the next line wasn't needed because we have the full delimiting of Notes done after the group by
-    #rated = rated[(rated.createdAt >= note_from) &
-    #                    (rated.createdAt <= note_to)]
-    ## UPDATE, I agree. I put it to check if we get the same results by capping
     # Find the first note written by each author, and if that author goes on to write another note
     first_notes = rated.groupby('noteAuthorParticipantId')\
         [['createdAt', 'finalRatingStatus', 'numRatings', 'rating_group',
@@ -76,7 +71,7 @@ def get_first_notes(rated, note_from, note_to, cutoff):
 
     # remove NNNs
     first_notes = first_notes[first_notes['classification'] != 'NOT_MISLEADING']
-    ## UPDATE, NNNs are not misleading, the remainder are classified as misleading
+    ## NNNs are not misleading, the remainder are classified as misleading
     print("Now we have " + str(len(first_notes)) + " notes classified as MISLEADING")
 
     # adding intercept fro them deciding algorithm
@@ -87,18 +82,21 @@ def get_first_notes(rated, note_from, note_to, cutoff):
     ]
 
     # keep only notes with enough rating
-    print("Dropping", len(first_notes) - len(first_notes[first_notes['rating_group'] == 1]), "notes with too few ratings")
+    #print("...Dropping", len(first_notes) - len(first_notes[first_notes['rating_group'] == 1]), "notes with too few ratings")
     first_notes = first_notes[first_notes['rating_group'] == 1]
-    
+    print("Now we have " + str(len(first_notes)) + " notes which have enough ratings")
 
     # keep only aligned notes (current status and final status align)
     
     mask_alignment = (((first_notes["intercept"] > cutoff) & (first_notes["finalRatingStatus"] == "CURRENTLY_RATED_HELPFUL")) |
         ((first_notes["intercept"] < cutoff) & (first_notes["finalRatingStatus"] != "CURRENTLY_RATED_HELPFUL")))
-    print("Dropping", len(first_notes) - len(first_notes[mask_alignment]), "notes with different current and final status")
+    #print("Dropping", len(first_notes) - len(first_notes[mask_alignment]), "notes with different current and final status")
     first_notes = first_notes[mask_alignment]
+    print("Now we have " + str(len(first_notes)) + " aligned notes")
 
-    print("Now we have", len(first_notes), "Notes")
+    print("--")
+    print("FINAL total", len(first_notes), "Notes")
+    print("if_written_again = ", len(first_notes[first_notes['if_written_again']]))
     print(f"\nNB Aligned data, current score")
 
 
@@ -152,15 +150,17 @@ rated = pd.read_parquet('./data2026post/' + 'rated_notes_compact.parquet', engin
 print("Imported data for " + str(len(rated)) + " notes") # 2747570 for 2026 data (was 1,946,619 for 2025 data)
 # For RDD we need to remove the notes which don't have enough rating to be helpful, so marking this now
 '''Zahra: I wanted to check which algorithms were used most often. 5 used to be the threshold for getting published if intercept and factor were in the range. If I did not use this criteria, some other algorithms became the top ones (after the core algorithm, of course) which did not have notes eligible for getting published.'''
-## UPDATE Should we do it any other way if splitting notes (removing notes with less than 10 rating)? I don't think so. 
-rated['rating_group'] = np.where(rated['numRatings'] >= 5,1, 0)
+## UPDATE This now accounts for the change in minimum number of ratings need before a Note published
+rated['rating_group'] = np.where((rated.createdAt >= pd.Timestamp(2025,4,8)) & (rated['numRatings'] >= 10) |
+                                    (rated.createdAt < pd.Timestamp(2025,4,8)) & (rated['numRatings'] >= 5), 1, 0)
+
 # proportion of Notes decided by each algorithm
 rated[rated['rating_group'] == 1]['decidedBy'].value_counts(normalize=True)
 
 
 # define timeranges for Author's first created note
-note_from = pd.Timestamp(2025, 1, 1)
-note_to = pd.Timestamp(2026, 6, 1)
+note_from = pd.Timestamp(2024, 1, 1)
+note_to = pd.Timestamp(2026, 6, 2)
 #(follow up can be at any point)
 
 # process data to produce running var and outcome var
@@ -533,20 +533,17 @@ print(f"sample-wide: {base_all:.3%}, local-untreated: {base_local:.3%}")
 # region date split sensisitivty check
 
 # define timeranges 
-note_from = pd.Timestamp(2026, 4, 1)
+note_from = pd.Timestamp(2025, 5, 8)
 note_to = pd.Timestamp(2026, 6, 1) #up to the march 2025 change
-follow_up_from = pd.Timestamp(2024, 1, 1)
-follow_up_to = pd.Timestamp(2026, 6, 1) #but follow up can be any point
 
 # process data to produce running var and outcome var
-cutoff = 0.4 #threshold at which a note is rated as helpful, needed to check for status alignment
-fn = get_first_notes(rated, note_from, note_to, follow_up_from, follow_up_to,cutoff)
+cutoff = 0.4 #threshold at which a note is rated as helpful
+fn = get_first_notes(rated, note_from, note_to, cutoff)
 
 y = fn['if_written_again'].astype(int).to_numpy()
 x = fn['intercept'].to_numpy(dtype=float)
-c = 0.4
 
 # --- Headline: MSE-optimal bandwidth, triangular kernel, local linear (defaults) ---
-robust_rdd(x,y,c)
+robust_rdd(x,y,cutoff)
 
 # endregion
