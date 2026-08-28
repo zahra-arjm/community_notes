@@ -1,10 +1,17 @@
 ---
 title: "Supplement for RDD results"
-date: today
+date: now
 abstract: |
   Quarto document renders the outputs for the full set of RDD results (sensitivity check etc). 
   Results are also saved in /paper-outputs as a .tex fragments so they can be pulled into overleaf directly
 ---
+
+# Topline
+
+- need to fix that plot
+- robust effect for authors a 3rd note (`have_another_note = note_counts[(note_counts >= 3)]`)
+- with authors a 2nd note (`have_another_note = note_counts[(note_counts >= 2)]`)
+- - robust rd not sig, donut RDD sig for 2 "larger holed donuts", ordinary OLS is sig with 0.08 threshold, 
 
 
 # Setup & Data {#sec-setup}
@@ -30,20 +37,23 @@ from write_helpers import write_macro, write_tabular, save_figure, OUT
 
 # --- Config ---------------------------------------------------------------
 CUTOFF    = 0.4                            # defined by CN system
-POLY      = 1                              # matches rdrobust local-linear
 plotloc   = 'paper-outputs'                # subfolder to save plots etc
+re_auth_thresh = 2                         # threshold for an author to count as writing again (number of notes)
+
 # -------------------------------------------------------------------------
 
-write_macro("cutoff", CUTOFF, digits=2)
-write_macro("polyOrder", POLY)
 ```
 
 ```{python}
 #| label: functions
 
 
-def get_first_notes(rated, note_from, note_to, cutoff):
+def get_first_notes(rated, note_from, note_to, cutoff, *, re_auth_thresh = 2):
     '''function to define data for analysis - running variable, outcome variable, sample defined by date'''
+
+    
+    print("ALERT! re_auth_thresh = ", re_auth_thresh)
+
 
     def model_to_column(s):
         # a helper function to map decidedBy to intercept
@@ -91,8 +101,8 @@ def get_first_notes(rated, note_from, note_to, cutoff):
 
     # code by number of authored notes explicitl
     note_counts = rated_2024.groupby('noteAuthorParticipantId').size()
-    have_another_note = note_counts[(note_counts >= 2)].index
-
+    have_another_note = note_counts[(note_counts >= re_auth_thresh)].index
+    
     # cumsum is zero indexed (wtf!) so a score of 1 means the author has written at least 2 notes
     #have_another_note = rated_2024[rated_2024.groupby('noteAuthorParticipantId').cumcount() >= 1]\
     #    ['noteAuthorParticipantId'].to_list()
@@ -210,7 +220,7 @@ note_to = pd.Timestamp(2026, 6, 2)
 #(follow up can be at any point)
 
 # process data to produce running var and outcome var
-first_notes = get_first_notes(rated, note_from, note_to, CUTOFF)
+first_notes = get_first_notes(rated, note_from, note_to, CUTOFF,re_auth_thresh = re_auth_thresh)
 
 
 ```
@@ -269,7 +279,7 @@ Just using OLS and an arbitary window
 ```{python}
 #| label: OLS-RDD
 
-bandwidth = 0.05 #window around cutoff
+bandwidth = 0.08 #window around cutoff
 print("bandwidth = ", bandwidth)
 
 # data for OLS RDD
@@ -427,13 +437,16 @@ counterfactual baseline.
 
 # Showing an illustrative RDD plot
 
+First, binned means with gloabl linear fit
+(this is the default plot from `rdplot`)
+
 ```{python}
 #| label: RDD-robust-plot
 
 STEM = 'RDDrobust_scatter'
 STEM = os.path.join(plotloc, STEM)
 
-out = rdplot(y=y, x=x, c=c, kernel='triangular', p=1, h=0.35,
+out = rdplot(y=y, x=x, c=c, kernel='triangular', p=1,
              binselect='es',
              title='RDD: publication threshold at 0.4',
              x_label='note intercept (current score)',
@@ -492,13 +505,17 @@ print(f"  bin width   : avg {meta['bin_avg']}, median {meta['bin_med']}")
 print("\ncoefficients:")
 print(coef.to_string())
 print(f"\nwrote {STEM}_meta.json, {STEM}_coef.csv")
+```
 
+Now with the local-lineat fits (over the rdrobust defined window)
 
+```{python}
+#| label: RDD-robust-plot-matplotlib
 
 # Matplot lib version of figure
 
 # use rdplot to get parameters, which we're going to redraw in matplotlib
-out = rdplot(y=y, x=x, c=c, kernel='triangular', p=1,
+out = rdplot(y=y, x=x, c=c, kernel='triangular', 
              binselect='es', ci=95, hide=True)
 
 b, pl = out.vars_bins, out.vars_poly
@@ -507,12 +524,12 @@ b, pl = out.vars_bins, out.vars_poly
 def local_line(side_mask):
     xs, ys = x[side_mask], y[side_mask]
     kw = 1 - np.abs(xs - c) / h_mse
-    b1, b0 = np.polyfit(xs, ys, 1, w=np.sqrt(kw))   # polyfit squares its weights
+    b1, b0 = np.polyfit(xs, ys, 1, w=np.sqrt(kw))
     grid = np.linspace(xs.min(), xs.max(), 50)
-    return grid, b0 + b1 * grid
+    return grid, b0 + b1 * grid, (b0, b1)
 
-gl, vl = local_line((x >= c - h_mse) & (x < c))
-gr, vr = local_line((x >= c) & (x <= c + h_mse))
+gl, vl, (b0l, b1l) = local_line((x >= c - h_mse) & (x < c))
+gr, vr, (b0r, b1r) = local_line((x >= c) & (x <= c + h_mse))
 
 # triangular-kernel weight of each bin midpoint (0 outside the window)
 w = np.clip(1 - np.abs(b.rdplot_mean_x - c) / h_mse, 0, 1)
@@ -524,21 +541,16 @@ ax.errorbar(b.rdplot_mean_x, b.rdplot_mean_y,
             yerr=[b.rdplot_mean_y - b.rdplot_ci_l,
                   b.rdplot_ci_r - b.rdplot_mean_y],
             fmt='none', ecolor='grey', elinewidth=0.8, alpha=0.6)
-ax.scatter(b.rdplot_mean_x, b.rdplot_mean_y,
-           s=sizes, color='grey', zorder=3)
+ax.scatter(b.rdplot_mean_x, b.rdplot_mean_y, s=sizes, color='grey', zorder=3)
 
-# fit lines: red, clipped to the MSE-optimal window
-in_h  = pl.rdplot_x.between(c - h_mse, c + h_mse)
-left  = pl[in_h & (pl.rdplot_x < c)]
-right = pl[in_h & (pl.rdplot_x >= c)]
-ax.plot(left.rdplot_x,  left.rdplot_y,  color='red', lw=2)
-ax.plot(right.rdplot_x, right.rdplot_y, color='red', lw=2)
-
+ax.plot(gl, vl, 'r-', lw=2) #left
+ax.plot(gr, vr, 'r-', lw=2) #right
 ax.axvline(c, ls='--', color='k', lw=0.8)
 
-#ax.plot(gl, vl, 'r-', lw=2); ax.plot(gr, vr, 'r-', lw=2)
+ax.set_xlim(left=0.2, right=0.6)
+#ax.set_xlim(c - 4*h_mse, c + 4*h_mse) 
 
-ax.set_xlabel('note intercept (current score)')
+ax.set_xlabel('note intercept')
 ax.set_ylabel('P(author writes again)')
 ax.spines[['top', 'right']].set_visible(False)
 ax.margins(x=0.02)
@@ -548,6 +560,9 @@ fig.savefig(f'{STEM}_mpl.pdf', bbox_inches='tight')   # vector, for the paper
 
 plt.show()
 
+print("consistency check: gap at cutoff should ≈ conventional tau")
+gap = (b0r + b1r * c) - (b0l + b1l * c)
+print(f"plot gap at c = {gap:+.4f}  vs  conventional tau = {tau:+.4f}")
 ```
 
 
@@ -673,7 +688,7 @@ note_to = pd.Timestamp(2026, 6, 1) #after the april 2025 change
 print("PERIOD 1, from " + note_from.strftime("%Y-%m-%d") + " to " + note_to.strftime("%Y-%m-%d"))
 
 # process data to produce running var and outcome var
-fn = get_first_notes(rated, note_from, note_to, CUTOFF)
+fn = get_first_notes(rated, note_from, note_to, CUTOFF, re_auth_thresh = re_auth_thresh)
 
 y = fn['if_written_again'].astype(int).to_numpy()
 x = fn['intercept'].to_numpy(dtype=float)
@@ -688,7 +703,7 @@ note_to = pd.Timestamp(2025, 4, 7) #up to the april 2025 change
 print("PERIOD 1, from " + note_from.strftime("%Y-%m-%d") + " to " + note_to.strftime("%Y-%m-%d"))
 
 # process data to produce running var and outcome var
-fn = get_first_notes(rated, note_from, note_to, CUTOFF)
+fn = get_first_notes(rated, note_from, note_to, CUTOFF, re_auth_thresh = re_auth_thresh)
 
 y = fn['if_written_again'].astype(int).to_numpy()
 x = fn['intercept'].to_numpy(dtype=float)

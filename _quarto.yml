@@ -17,6 +17,8 @@ format:
         \usepackage{booktabs}
         \usepackage{siunitx}
 
+date-format: "YYYY-MM-DD HH:mm"
+
 execute:
   echo: false
   warning: false
