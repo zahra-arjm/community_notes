@@ -1,0 +1,24 @@
+project:
+  type: default
+
+format:
+  pdf:
+    documentclass: article
+    fontsize: 11pt
+    geometry:
+      - margin=1in
+    number-sections: true
+    toc: true
+    toc-depth: 2
+    keep-tex: true
+    pdf-engine: xelatex
+    include-in-header:
+      text: |
+        \usepackage{booktabs}
+        \usepackage{siunitx}
+
+execute:
+  echo: false
+  warning: false
+  message: false
+  cache: false

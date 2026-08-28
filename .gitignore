@@ -1,3 +1,6 @@
 /supplement_files/
 /__pycache__/
 
+
+/.quarto/
+**/*.quarto_ipynb

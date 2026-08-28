@@ -558,7 +558,7 @@ print(f"sample-wide: {base_all:.3%}, local-untreated: {base_local:.3%}")
 # region date split sensisitivty check
 
 # define timeranges 
-note_from = pd.Timestamp(2025, 5, 8)
+note_from = pd.Timestamp(2025, 4, 8)
 note_to = pd.Timestamp(2026, 6, 1) #up to the march 2025 change
 
 # process data to produce running var and outcome var
