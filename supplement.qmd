@@ -13,18 +13,25 @@ abstract: |
 #| label: setup
 import numpy as np
 import pandas as pd
-from pathlib import Path
+import os
+
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
-from rdrobust import rdrobust
+# for OLS RDD
+import statsmodels.formula.api as smf
+
+# for rdrobust
+from rdrobust import rdrobust, rdplot
+from rddensity import rddensity, rdplotdensity
+import json
 
 from write_helpers import write_macro, write_tabular, save_figure, OUT
 
 # --- Config ---------------------------------------------------------------
 CUTOFF    = 0.4                            # defined by CN system
 POLY      = 1                              # matches rdrobust local-linear
-KERNEL    = "triangular"                   # default, just explicit
+plotloc   = 'paper-outputs'                # subfolder to save plots etc
 # -------------------------------------------------------------------------
 
 write_macro("cutoff", CUTOFF, digits=2)
@@ -135,13 +142,15 @@ def get_first_notes(rated, note_from, note_to, cutoff):
 
 def robust_rdd(x,y,c):
     '''wrapper function to run rdrobust and print results'''
+    #
+    KERNEL    = "triangular"                   # default, just explicit
     # declare outinputs
     print("running variable (x) length", len(x))
     print("binary outcome (y) length", len(y))
     print("cutoff (c) is", c)
 
     # next line is the regression
-    fit = rdrobust(y=y, x=x, c=c)
+    fit = rdrobust(y=y, x=x, c=c, kernel=KERNEL)
     # now we're just formatting the output
     print(fit)                              # full CCT-style table
     h_mse = float(fit.bws.iloc[0, 0])       # selected h (left; symmetric by default)
@@ -168,13 +177,18 @@ def robust_rdd(x,y,c):
         print(f"  h = {h:.4f} ({mult:.1f}x)  tau = {tau:+.4f}  "
             f"95% CI [{lo:+.4f}, {hi:+.4f}]  N_L/N_R = {nL}/{nR}")
 
-
+    return fit
 
 ```
 
 
 ```{python}
 #| label: load-data, preprocess
+#| cache: true
+
+# Remember, if we alter the get_first_notes function we need force a cache refresh
+# can do with quarto render --cache-refresh
+
 
 rated = pd.read_parquet('./data2026post/' + 'rated_notes_compact.parquet', engine='auto')
 
@@ -260,11 +274,10 @@ print("bandwidth = ", bandwidth)
 
 # data for OLS RDD
 running_variable = first_notes['intercept']
-# Treatment = 1 if running_variable >= cutoff, else 0
-treatment = np.where(running_variable >= cutoff, 1, 0)
+treatment = np.where(running_variable >= CUTOFF, 1, 0)
 outcome_variable = first_notes['if_written_again'].astype(int)
 # we only fit data within the window
-mask = (running_variable > cutoff - bandwidth)  & (running_variable < cutoff + bandwidth)
+mask = (running_variable > CUTOFF - bandwidth)  & (running_variable < CUTOFF + bandwidth)
 data = pd.DataFrame({
     'running_variable': running_variable[mask],
     'treatment': treatment[mask],
@@ -272,7 +285,7 @@ data = pd.DataFrame({
 })
 
 # Center the running variable at the cutoff for easier interpretation of the intercept
-data['running_variable_centered'] = data['running_variable'] - cutoff
+data['running_variable_centered'] = data['running_variable'] - CUTOFF
 print(f"\nNumber of treated units: {data['treatment'].sum()}")
 print(f"Number of control units: {data['treatment'].count() - data['treatment'].sum()}")
 
@@ -310,5 +323,377 @@ t_statistic_treatment = rdd_model.tvalues['treatment']
 # print out p value and t-statistic for treatment
 print(f"\nP-value for treatment: {p_value_treatment:.4f}")
 print(f"T-statistic for treatment: {t_statistic_treatment:.4f}")
+
+```
+
+
+# RDD using rdrobust 
+
+This has the option of using a polynomial fit (which we decline), and uses all points, weigted by proximity to cutoff
+
+References for this method
+
+@article{calonico2014robust,
+  title   = {Robust Nonparametric Confidence Intervals for Regression-Discontinuity Designs},
+  author  = {Calonico, Sebastian and Cattaneo, Matias D. and Titiunik, Rocio},
+  journal = {Econometrica},
+  volume  = {82},
+  number  = {6},
+  pages   = {2295--2326},
+  year    = {2014},
+  doi     = {10.3982/ECTA11757}
+}
+
+@article{calonico2018effect,
+  title   = {On the Effect of Bias Estimation on Coverage Accuracy in Nonparametric Inference},
+  author  = {Calonico, Sebastian and Cattaneo, Matias D. and Farrell, Max H.},
+  journal = {Journal of the American Statistical Association},
+  volume  = {113},
+  number  = {522},
+  pages   = {767--779},
+  year    = {2018},
+  doi     = {10.1080/01621459.2017.1285776}
+}
+
+@article{calonico2014rdrobust,
+  title   = {Robust Data-Driven Inference in the Regression-Discontinuity Design},
+  author  = {Calonico, Sebastian and Cattaneo, Matias D. and Titiunik, Rocio},
+  journal = {The Stata Journal},
+  volume  = {14},
+  number  = {4},
+  pages   = {909--946},
+  year    = {2014},
+  doi     = {10.1177/1536867X1401400413}
+}
+
+```{python}
+#| label: RDD-robust
+# pip install rdrobust # or update conda env
+
+fn = first_notes.copy() #same data as for OLS
+
+y = fn['if_written_again'].astype(int).to_numpy()
+x = fn['intercept'].to_numpy(dtype=float)
+c = CUTOFF
+
+# --- Headline: MSE-optimal bandwidth, triangular kernel, local linear (defaults) ---
+fit = robust_rdd(x, y, c)
+
+tau   = float(fit.coef.loc["Conventional"].iloc[0])
+p_rob = float(fit.pv.loc["Robust"].iloc[0])
+ci_lo, ci_hi = fit.ci.loc["Robust"]
+
+h_mse = float(fit.bws.loc["h", "left"])          # MSE-optimal bandwidth
+n_eff = int(fit.N_h[0] + fit.N_h[1])             # effective N within bandwidth
+
+
+
+```
+
+Mephi suggested text :
+
+At the MSE-optimal bandwidth (h = `{python} f"{h_mse:.3f}"`) we estimate
+τ̂ = `{python} f"{tau*100:+.1f}"`pp in the probability of writing a second
+note (conventional local-linear estimator; robust bias-corrected 95% CI
+[`{python} f"{ci_lo*100:+.1f}"`, `{python} f"{ci_hi*100:+.1f}"`],
+p = `{python} f"{p_rob:.2f}"`).
+
+
+# Converting rate to baseline outcome rate
+
+```{python}
+#| label: reporting percentages
+
+h_mse = float(fit.bws.iloc[0, 0])       # selected h (left; symmetric by default)
+tau = float(fit.coef.iloc[0, 0])        # note that tau is for the conventional model
+
+base_all = y.mean()
+mask_local = (x >= 0.4 - h_mse) & (x < 0.4)
+base_local = y[mask_local].mean()
+
+treated_local = base_local + tau
+rel_lift = tau / base_local
+
+```
+
+
+Mephi suggested text: Untreated authors at the cutoff re-author at
+`{python} f"{base_local:.1%}"`; treated authors at the cutoff
+re-author at ~`{python} f"{treated_local:.1%}"`. Treatment
+effect = `{python} f"{tau*100:.1f}"`pp, a
+`{python} f"{rel_lift:.1%}"` relative lift over the
+counterfactual baseline.
+
+
+# Showing an illustrative RDD plot
+
+```{python}
+#| label: RDD-robust-plot
+
+STEM = 'RDDrobust_scatter'
+STEM = os.path.join(plotloc, STEM)
+
+out = rdplot(y=y, x=x, c=c, kernel='triangular', p=1, h=0.35,
+             binselect='es',
+             title='RDD: publication threshold at 0.4',
+             x_label='note intercept (current score)',
+             y_label='P(author writes again)')
+
+# ---- figure ----
+p = getattr(out, 'rdplot', out)
+if hasattr(p, 'save'):                      # plotnine ggplot
+    p.save(f'{STEM}.png', dpi=120, width=7, height=5, verbose=False)
+else:                                       # matplotlib figure
+    p.savefig(f'{STEM}.png', dpi=120, bbox_inches='tight')
+
+#show figure
+plt.show()
+
+# ---- underlying data ----
+bins = out.vars_bins.copy()                 # binned sample means (the dots)
+poly = out.vars_poly.copy()                 # local polynomial fit (the lines)
+
+# tag which side of the cutoff each row sits on
+bins['side'] = (bins['rdplot_mean_bin'] >= c).map({True: 'right', False: 'left'})
+poly['side'] = (poly['rdplot_x'] >= c).map({True: 'right', False: 'left'})
+
+bins['layer'], poly['layer'] = 'bin', 'fit'
+tidy = pd.concat([bins, poly], ignore_index=True)
+tidy['cutoff'] = c
+tidy.to_csv(f'{STEM}_data.csv', index=False)
+
+print(bins.columns.tolist())                # sanity check on names
+print(f'{STEM}.png + {STEM}_data.csv written ({len(bins)} bins, {len(poly)} fit points)')
+
+meta = {
+    'cutoff': c, 'p': 1, 'kernel': 'triangular',
+    'J_left': int(np.ravel(out.J)[0]), 'J_right': int(np.ravel(out.J)[-1]),
+    'J_IMSE': np.ravel(out.J_IMSE).tolist(),
+    'J_MV': np.ravel(out.J_MV).tolist(),
+    'scale': np.ravel(out.scale).tolist(),
+    'bin_avg': np.ravel(out.bin_avg).tolist(),
+    'bin_med': np.ravel(out.bin_med).tolist(),
+    'n_obs': int(len(x)),
+}
+with open(f'{STEM}_meta.json', 'w') as f:
+    json.dump(meta, f, indent=2)
+
+# polynomial coefficients (left/right fits) as their own table
+coef = pd.DataFrame(out.coef)
+coef.to_csv(f'{STEM}_coef.csv')
+
+# ---- readout ----
+print(f"\nRD plot at c = {meta['cutoff']}  (p={meta['p']}, {meta['kernel']}, N={meta['n_obs']})")
+print(f"  bins used   : {meta['J_left']} left / {meta['J_right']} right")
+print(f"  J_IMSE      : {meta['J_IMSE']}")
+print(f"  J_MV        : {meta['J_MV']}")
+print(f"  scale       : {meta['scale']}")
+print(f"  bin width   : avg {meta['bin_avg']}, median {meta['bin_med']}")
+print("\ncoefficients:")
+print(coef.to_string())
+print(f"\nwrote {STEM}_meta.json, {STEM}_coef.csv")
+
+
+
+# Matplot lib version of figure
+
+# use rdplot to get parameters, which we're going to redraw in matplotlib
+out = rdplot(y=y, x=x, c=c, kernel='triangular', p=1,
+             binselect='es', ci=95, hide=True)
+
+b, pl = out.vars_bins, out.vars_poly
+
+# we also need to re-derive the regessions using the triangular kernel
+def local_line(side_mask):
+    xs, ys = x[side_mask], y[side_mask]
+    kw = 1 - np.abs(xs - c) / h_mse
+    b1, b0 = np.polyfit(xs, ys, 1, w=np.sqrt(kw))   # polyfit squares its weights
+    grid = np.linspace(xs.min(), xs.max(), 50)
+    return grid, b0 + b1 * grid
+
+gl, vl = local_line((x >= c - h_mse) & (x < c))
+gr, vr = local_line((x >= c) & (x <= c + h_mse))
+
+# triangular-kernel weight of each bin midpoint (0 outside the window)
+w = np.clip(1 - np.abs(b.rdplot_mean_x - c) / h_mse, 0, 1)
+sizes = 8 + 60 * w          # floor of 8 so out-of-window bins stay visible
+
+fig, ax = plt.subplots()
+
+ax.errorbar(b.rdplot_mean_x, b.rdplot_mean_y,
+            yerr=[b.rdplot_mean_y - b.rdplot_ci_l,
+                  b.rdplot_ci_r - b.rdplot_mean_y],
+            fmt='none', ecolor='grey', elinewidth=0.8, alpha=0.6)
+ax.scatter(b.rdplot_mean_x, b.rdplot_mean_y,
+           s=sizes, color='grey', zorder=3)
+
+# fit lines: red, clipped to the MSE-optimal window
+in_h  = pl.rdplot_x.between(c - h_mse, c + h_mse)
+left  = pl[in_h & (pl.rdplot_x < c)]
+right = pl[in_h & (pl.rdplot_x >= c)]
+ax.plot(left.rdplot_x,  left.rdplot_y,  color='red', lw=2)
+ax.plot(right.rdplot_x, right.rdplot_y, color='red', lw=2)
+
+ax.axvline(c, ls='--', color='k', lw=0.8)
+
+#ax.plot(gl, vl, 'r-', lw=2); ax.plot(gr, vr, 'r-', lw=2)
+
+ax.set_xlabel('note intercept (current score)')
+ax.set_ylabel('P(author writes again)')
+ax.spines[['top', 'right']].set_visible(False)
+ax.margins(x=0.02)
+
+fig.savefig(f'{STEM}_mpl.png', dpi=300, bbox_inches='tight')
+fig.savefig(f'{STEM}_mpl.pdf', bbox_inches='tight')   # vector, for the paper
+
+plt.show()
+
+```
+
+
+
+
+# Robustness check - density test
+
+Next, manipulation test/density smoothness at cutoff 
+
+if units (people) can select to be just above cutoff then density will not be smooth
+(think the pass grade on an exam)
+
+
+```{python}
+#| label: RDD-density
+
+binW = 0.02 #window around cutoff
+print("Inspecting density with a window of +/o = ", binW)
+
+dens = rddensity(X=x, c=CUTOFF, binoW=binW) # binoW forces window to be 0.38 to 0.42, which is a stricter test of balance around threshold
+
+print(dens.test)   # T-stat and p-value; three rows for VCE variants (conventional / TW / jackknife)
+print(dens.hat)    # left/right density point estimates and the jump
+print(dens.h)      # bandwidths h_L, h_R
+print(dens.n)      # effective N on each side within bandwidth
+print(dens.bino)   # binomial-count local test at the cutoff (defaults on)
+
+print([a for a in dir(dens) if not a.startswith('_')])
+
+mask = (x >= CUTOFF - binW) & (x <= CUTOFF + binW)
+x_near = x[mask]
+
+# Direct matplotlib histogram — most informative
+plt.hist(x_near, bins=50, edgecolor='black')
+plt.axvline(0.4, color='red', linestyle='--')
+plt.xlabel('intercept'); plt.ylabel('count')
+plt.show()
+```
+
+A wider window shows that the density does progressively decrease up to the cutoff, 
+but no signs of sub-threshold notes being shifted to above threshold (decline not matched by leap post-cutoff)
+
+
+# Robustness check - Donut RDD
+
+Exluding results at the cutoff
+
+```{python}
+#| label: RDD-donut
+
+
+donut_widths = [0.005, 0.010, 0.020]
+rows = []
+
+# Baseline (no donut) for the first row of the table
+r0 = rdrobust(y=y, x=x, c=0.4)
+rows.append({
+    "donut": "none",
+    "n_eff_L": int(r0.N_h[0]),
+    "n_eff_R": int(r0.N_h[1]),
+    "h": round(float(r0.bws.iloc[0, 0]), 3),
+    "coef_conv": round(float(r0.coef.iloc[0, 0]), 4),
+    "se_conv":   round(float(r0.se.iloc[0, 0]),   4),
+    "p_robust":  round(float(r0.pv.iloc[2, 0]),   4),
+    "ci_robust_lo": round(float(r0.ci.iloc[2, 0]), 4),
+    "ci_robust_hi": round(float(r0.ci.iloc[2, 1]), 4),
+})
+
+for w in donut_widths:
+    mask = (x < 0.4 - w) | (x > 0.4 + w)
+    xd, yd = x[mask], y[mask]
+    r = rdrobust(y=yd, x=xd, c=0.4)
+    rows.append({
+        "donut": f"±{w:.3f}",
+        "n_eff_L": int(r.N_h[0]),
+        "n_eff_R": int(r.N_h[1]),
+        "h": round(float(r.bws.iloc[0, 0]), 3),
+        "coef_conv": round(float(r.coef.iloc[0, 0]), 4),
+        "se_conv":   round(float(r.se.iloc[0, 0]),   4),
+        "p_robust":  round(float(r.pv.iloc[2, 0]),   4),
+        "ci_robust_lo": round(float(r.ci.iloc[2, 0]), 4),
+        "ci_robust_hi": round(float(r.ci.iloc[2, 1]), 4),
+    })
+
+df = pd.DataFrame(rows)
+print(df.to_string(index=False))
+```
+
+
+# Sensitivity check - RDD sensitivity with different cutoffs
+
+NB Only a cutoff of 0.4 makes sense in terms of the CN publication mechanism. Therefore we expect other thresholds to show now effect (definitely below 0.4, cutoffs above 0.4 will include some published notes above and below that cutoffs, so if there is a true effect may report an attenuated form of that)
+
+
+```{python}
+#| label: RDD-sensitivity-cutoff
+
+# nb we are reusing x and y from the first use of rdrobust
+
+c=0.3;robust_rdd(x,y,c) # all ns and inconsistent effect directions
+c=0.35;robust_rdd(x,y,c) # all ns and inconsistent effect directions
+mask=x>0.4
+c=0.45;robust_rdd(x[mask],y[mask],c) # all ns and inconsistent effect directions
+
+```
+
+All these are non-significant
+
+
+
+# Sensitivity check - data for different time windows
+
+```{python}
+#| label: RDD-sensitivity-time
+
+
+
+
+# define timeranges 
+note_from = pd.Timestamp(2025, 4, 8)
+note_to = pd.Timestamp(2026, 6, 1) #after the april 2025 change
+
+print("PERIOD 1, from " + note_from.strftime("%Y-%m-%d") + " to " + note_to.strftime("%Y-%m-%d"))
+
+# process data to produce running var and outcome var
+fn = get_first_notes(rated, note_from, note_to, CUTOFF)
+
+y = fn['if_written_again'].astype(int).to_numpy()
+x = fn['intercept'].to_numpy(dtype=float)
+
+# --- Headline: MSE-optimal bandwidth, triangular kernel, local linear (defaults) ---
+fit = robust_rdd(x,y,CUTOFF)
+
+# define timeranges 
+note_from = pd.Timestamp(2024, 1, 1)
+note_to = pd.Timestamp(2025, 4, 7) #up to the april 2025 change
+
+print("PERIOD 1, from " + note_from.strftime("%Y-%m-%d") + " to " + note_to.strftime("%Y-%m-%d"))
+
+# process data to produce running var and outcome var
+fn = get_first_notes(rated, note_from, note_to, CUTOFF)
+
+y = fn['if_written_again'].astype(int).to_numpy()
+x = fn['intercept'].to_numpy(dtype=float)
+
+# --- Headline: MSE-optimal bandwidth, triangular kernel, local linear (defaults) ---
+fit = robust_rdd(x,y,CUTOFF)
 
 ```
