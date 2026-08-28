@@ -6,7 +6,6 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 from datetime import datetime
 import pickle
 import calendar
@@ -39,13 +38,32 @@ def get_first_notes(rated, note_from, note_to, cutoff):
         return base[:1].lower() + base[1:] + "NoteIntercept"
 
     # Find the first note written by each author, and if that author goes on to write another note
-    first_notes = rated.groupby('noteAuthorParticipantId')\
-        [['createdAt', 'finalRatingStatus', 'numRatings', 'rating_group',
-        'decidedBy','coreNoteFactor1', 'coreNoteIntercept', 'coreNoteInterceptMax',
+    # nb adding sort_values('createdAt') as sanity check, df is mostly pre-sortes
+
+    # OLD versjon - using .first() which is vulnerable to dropping rows with Nans
+    # first_notes = rated.sort_values('createdAt').groupby('noteAuthorParticipantId')\
+    #     [['createdAt', 'finalRatingStatus', 'numRatings', 'rating_group',
+    #     'decidedBy','coreNoteFactor1', 'coreNoteIntercept', 'coreNoteInterceptMax',
+    #     'expansionNoteFactor1', 'expansionNoteIntercept', 'expansionNoteInterceptMax',
+    #     'coreWithTopicsNoteFactor1', 'coreWithTopicsNoteIntercept', 'coreWithTopicsNoteInterceptMax',
+    #     'classification']]\
+    #     .first().reset_index()
+
+    # NEW version - using .head(1) which is more robust to Nans
+    cols = ['noteAuthorParticipantId', 'createdAt', 'finalRatingStatus',
+        'numRatings', 'rating_group', 'decidedBy',
+        'coreNoteFactor1', 'coreNoteIntercept', 'coreNoteInterceptMax',
         'expansionNoteFactor1', 'expansionNoteIntercept', 'expansionNoteInterceptMax',
         'coreWithTopicsNoteFactor1', 'coreWithTopicsNoteIntercept', 'coreWithTopicsNoteInterceptMax',
-        'classification']]\
-        .first().reset_index()
+        'classification']
+
+    first_notes = (rated.sort_values('createdAt')
+                    .groupby('noteAuthorParticipantId', sort=False)
+                    .head(1)
+                    [cols]
+                    .reset_index(drop=True))
+
+
     print("Now we have " + str(len(first_notes)) + " first time note authors (all time)")
     # Restricting our analysis to authors who joined in 2024 or 2025 
     first_notes = first_notes[(first_notes.createdAt >= note_from) &
@@ -58,8 +76,15 @@ def get_first_notes(rated, note_from, note_to, cutoff):
     # Restricting our analysis to notes after 2024
     rated_2024 = rated[(rated.createdAt >= pd.Timestamp(2024,1,1))]
 
-    have_another_note = rated_2024[rated_2024.groupby('noteAuthorParticipantId').cumcount() >= 2]\
-        ['noteAuthorParticipantId'].to_list()
+    # code by number of authored notes explicitl
+    note_counts = rated_2024.groupby('noteAuthorParticipantId').size()
+    have_another_note = note_counts[(note_counts >= 2)].index
+
+    # cumsum is zero indexed (wtf!) so a score of 1 means the author has written at least 2 notes
+    #have_another_note = rated_2024[rated_2024.groupby('noteAuthorParticipantId').cumcount() >= 1]\
+    #    ['noteAuthorParticipantId'].to_list()
+
+    
 
     # add to primary dataframe
     first_notes['if_written_again'] = first_notes['noteAuthorParticipantId'].isin(have_another_note)

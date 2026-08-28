@@ -1,0 +1,47 @@
+---
+title: "Supplement for RDD results"
+date: today
+abstract: |
+  Quarto document renders the outputs for the full set of RDD results (sensitivity check etc). 
+  Results are also saved in /paper-outputs as a .tex fragments so they can be pulled into overleaf directly
+---
+
+
+# Setup {#sec-setup}
+
+```{python}
+#| label: setup
+import numpy as np
+import pandas as pd
+from pathlib import Path
+import matplotlib.pyplot as plt
+
+from rdrobust import rdrobust
+
+from write_helpers import write_macro, write_tabular, save_figure, OUT
+
+# --- Config ---------------------------------------------------------------
+DATA_PATH = Path("scored_notes.parquet")   # HPC output
+CUTOFF    = 0.4
+POLY      = 1                              # matches rdrobust local-linear
+#KERNEL    = "triangular"
+#SEED      = 20260824
+# -------------------------------------------------------------------------
+
+write_macro("cutoff", CUTOFF, digits=2)
+write_macro("polyOrder", POLY)
+```
+
+```{python}
+#| label: load-data
+if DATA_PATH.exists():
+    df = pd.read_parquet(DATA_PATH)
+    
+
+write_macro("nNotes", len(df))
+
+print(f"N = {len(df):,}")
+```
+
+
+# Main sharp-RDD estimate {#sec-main}
