@@ -79,6 +79,7 @@ df_short = df[
     'coverageNoteInterceptMin', 'coverageNoteInterceptMax',
     'groupNoteIntercept', 'groupNoteFactor1', 'groupRatingStatus',
     'groupNoteInterceptMax', 'groupNoteInterceptMin', 
+    'expansionPlusNoteIntercept', 'expansionPlusNoteFactor1', 'expansionPlusRatingStatus',
     'modelingGroup',
     # 'believable', deprecated!
     # 'harmful', 
