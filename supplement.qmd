@@ -8,7 +8,6 @@ abstract: |
 
 # Topline
 
-- need to fix that plot
 - robust effect for authors a 3rd note (`have_another_note = note_counts[(note_counts >= 3)]`)
 - with authors a 2nd note (`have_another_note = note_counts[(note_counts >= 2)]`)
 - - robust rd not sig, donut RDD sig for 2 "larger holed donuts", ordinary OLS is sig with 0.08 threshold, 
@@ -21,6 +20,7 @@ abstract: |
 import numpy as np
 import pandas as pd
 import os
+import re
 
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
@@ -54,11 +54,14 @@ def get_first_notes(rated, note_from, note_to, cutoff, *, re_auth_thresh = 2):
     
     print("ALERT! re_auth_thresh = ", re_auth_thresh)
 
-
-    def model_to_column(s):
-        # a helper function to map decidedBy to intercept
-        base = s.split("Model")[0]
-        return base[:1].lower() + base[1:] + "NoteIntercept"
+    ## CHANGED 2026-08-29
+    def get_decided_value(row, value_type):
+        # a function to map decidedBy values to both factor and intercept
+        model = re.sub(r'Model.*$', '', row['decidedBy']).strip()
+        model = model[0].lower() + model[1:]
+        
+        column = f"{model}Note{value_type}"
+        return row[column]
 
     # Find the first note written by each author, and if that author goes on to write another note
     # nb adding sort_values('createdAt') as sanity check, df is mostly pre-sortes
@@ -73,10 +76,12 @@ def get_first_notes(rated, note_from, note_to, cutoff, *, re_auth_thresh = 2):
     #     .first().reset_index()
 
     # NEW version - using .head(1) which is more robust to Nans
+    # CHANGED 2026-08-29 to include expansionPlusNoteFactor1 and expansionPlusNoteIntercept
     cols = ['noteAuthorParticipantId', 'createdAt', 'finalRatingStatus',
         'numRatings', 'rating_group', 'decidedBy',
         'coreNoteFactor1', 'coreNoteIntercept', 'coreNoteInterceptMax',
         'expansionNoteFactor1', 'expansionNoteIntercept', 'expansionNoteInterceptMax',
+        'expansionPlusNoteFactor1', 'expansionPlusNoteIntercept',
         'coreWithTopicsNoteFactor1', 'coreWithTopicsNoteIntercept', 'coreWithTopicsNoteInterceptMax',
         'classification']
 
@@ -111,23 +116,30 @@ def get_first_notes(rated, note_from, note_to, cutoff, *, re_auth_thresh = 2):
 
     # add to primary dataframe
     first_notes['if_written_again'] = first_notes['noteAuthorParticipantId'].isin(have_another_note)
-    # filter to only notes written by the 3 major algorithms
+    # filter to only notes written by the 4 major algorithms
+    # CHANGED 2026-08-29 to include ExpansionPlusModel
     first_notes = first_notes[first_notes['decidedBy']\
-        .isin(['CoreModel (v1.1)', 'ExpansionModel (v1.1)', 'CoreWithTopicsModel (v1.1)'])]
-    
-    print("Now we have " + str(len(first_notes)) + " notes written by the 3 major algorithms")
+        .isin(['CoreModel (v1.1)', 'ExpansionModel (v1.1)',
+        'ExpansionPlusModel (v1.1)', 'CoreWithTopicsModel (v1.1)'])]
+
+    print("Now we have " + str(len(first_notes)) + " notes written by the 4 major algorithms")
 
     # remove NNNs
     first_notes = first_notes[first_notes['classification'] != 'NOT_MISLEADING']
     ## NNNs are not misleading, the remainder are classified as misleading
     print("Now we have " + str(len(first_notes)) + " notes classified as MISLEADING")
 
-    # adding intercept fro them deciding algorithm
-    cols = first_notes["decidedBy"].apply(model_to_column)
-    first_notes["intercept"] = first_notes.to_numpy()[
-    np.arange(len(first_notes)),
-    first_notes.columns.get_indexer(cols)
-    ]
+    # CHANGED 2026-08-29, to use new function (above)
+    # adding intercept and factor from the deciding algorithm
+    first_notes['intercept'] = first_notes.apply(
+        lambda row: get_decided_value(row, 'Intercept'),
+        axis=1
+    )
+
+    first_notes['factor'] = first_notes.apply(
+        lambda row: get_decided_value(row, 'Factor1'),
+        axis=1
+    )
 
     # keep only notes with enough rating
     #print("...Dropping", len(first_notes) - len(first_notes[first_notes['rating_group'] == 1]), "notes with too few ratings")
