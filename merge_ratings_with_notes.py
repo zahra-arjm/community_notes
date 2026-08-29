@@ -98,7 +98,8 @@ df_short = df[
     # 'notMisleadingPersonalOpinion', 
     # 'trustworthySources',
     'summary',
-    'isMediaNote',]
+    'isMediaNote',
+    'timestampMillisOfFirstNmrDueToMinStableCrhTime',]
 ]
 
 
