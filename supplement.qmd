@@ -79,6 +79,7 @@ def get_first_notes(rated, note_from, note_to, cutoff, *, re_auth_thresh = 2):
     # CHANGED 2026-08-29 to include expansionPlusNoteFactor1 and expansionPlusNoteIntercept
     cols = ['noteAuthorParticipantId', 'createdAt', 'finalRatingStatus',
         'numRatings', 'rating_group', 'decidedBy',
+        'firstNonNMRStatus', 'mostRecentNonNMRStatus', 'lockedStatus','timestampMillisOfFirstNmrDueToMinStableCrhTime',
         'coreNoteFactor1', 'coreNoteIntercept', 'coreNoteInterceptMax',
         'expansionNoteFactor1', 'expansionNoteIntercept', 'expansionNoteInterceptMax',
         'expansionPlusNoteFactor1', 'expansionPlusNoteIntercept',
@@ -116,13 +117,15 @@ def get_first_notes(rated, note_from, note_to, cutoff, *, re_auth_thresh = 2):
 
     # add to primary dataframe
     first_notes['if_written_again'] = first_notes['noteAuthorParticipantId'].isin(have_another_note)
-    # filter to only notes written by the 4 major algorithms
-    # CHANGED 2026-08-29 to include ExpansionPlusModel
-    first_notes = first_notes[first_notes['decidedBy']\
-        .isin(['CoreModel (v1.1)', 'ExpansionModel (v1.1)',
-        'ExpansionPlusModel (v1.1)', 'CoreWithTopicsModel (v1.1)'])]
-
-    print("Now we have " + str(len(first_notes)) + " notes written by the 4 major algorithms")
+    # filter to only notes written by the major algorithms
+    # define models (algorithms to include))
+    #models = ['CoreModel (v1.1)'] # >70% of Notes,
+    models = ['CoreModel (v1.1)', 'ExpansionModel (v1.1)', 'CoreWithTopicsModel (v1.1)']
+    #models = ['CoreModel (v1.1)', 'ExpansionModel (v1.1)', 'ExpansionPlusModel (v1.1)', 'CoreWithTopicsModel (v1.1)']
+    # select on models
+    first_notes = first_notes[first_notes['decidedBy'].isin(models)]
+    
+    print("Now we have " + str(len(first_notes)) + " notes written by our " + str(len(models)) + " choosen algorithms")
 
     # remove NNNs
     first_notes = first_notes[first_notes['classification'] != 'NOT_MISLEADING']
@@ -151,13 +154,14 @@ def get_first_notes(rated, note_from, note_to, cutoff, *, re_auth_thresh = 2):
     mask_alignment = (((first_notes["intercept"] > cutoff) & (first_notes["finalRatingStatus"] == "CURRENTLY_RATED_HELPFUL")) |
         ((first_notes["intercept"] < cutoff) & (first_notes["finalRatingStatus"] != "CURRENTLY_RATED_HELPFUL")))
     #print("Dropping", len(first_notes) - len(first_notes[mask_alignment]), "notes with different current and final status")
-    first_notes = first_notes[mask_alignment]
-    print("Now we have " + str(len(first_notes)) + " aligned notes")
+    #first_notes = first_notes[mask_alignment]
+    #print("Now we have " + str(len(first_notes)) + " aligned notes")
+    print("--------         No filter for alignment")
 
-    print("--")
+   
     print("FINAL total", len(first_notes), "Notes")
     print("of which author writes again = ", len(first_notes[first_notes['if_written_again']]))
-    print(f"\nNB Aligned data, current score")
+    print(f"\nNB current (final), not Max, score")
 
 
     return first_notes
@@ -237,7 +241,7 @@ first_notes = get_first_notes(rated, note_from, note_to, CUTOFF,re_auth_thresh =
 
 ```
 
-# Plots {#sec-plots}
+# Diagnostic Plots {#sec-plots}
 
 Most notes have a small number of rating, a small number have very many ratinhgs
 This means the distribution of ratings is very skewed.
@@ -245,7 +249,7 @@ We take the log of the number of ratings to make the distribution more normal
 
 
 ```{python}
-#| label: plots
+#| label: Notecount
 
 first_notes['log_numRatings']=np.log(first_notes['numRatings'])
 # some don't even have 1 rating
@@ -260,7 +264,7 @@ Plotting log(numRatings) vs NoteIntercept, with colours according to Note final 
 
 
 ```{python}
-#| label: plots-2
+#| label: intercept-vs-status
 
 plt.clf()
 groups = ['CURRENTLY_RATED_HELPFUL', 'NEEDS_MORE_RATINGS', 'CURRENTLY_RATED_NOT_HELPFUL']
@@ -283,6 +287,76 @@ plt.ylabel('Note intercept')
 plt.legend(handles=handles, loc=0)
 plt.savefig('paper-outputs/scatter_numRatings_NoteIntercept.png', dpi=120, bbox_inches='tight')
 ```
+
+
+Sadly, though, our data record intercept calculated from the full set of ratings, this is not the contemporatious intercept score which determines moment-by-moment publication. It approximates it, but with contamination. Notes pay be published then unpublished as the receive more ratings and their rating degrades, or there may be additional blocks on publication (e.g. requirements on total number or type of ratings, or requirements on intercept stability or a lag before publication). The CN system is not entirely clear about all these details.
+
+These contamination can be seen by plotting indicators of ever having been published against our (final) intercept.
+
+```{python}
+#| label: diagnostic
+
+# --- First-stage diagnostic: publication status vs running variable ---
+
+CRH = "CURRENTLY_RATED_HELPFUL"
+
+first_notes["ever_published"] = (
+    (first_notes["firstNonNMRStatus"] == CRH)
+    | (first_notes["mostRecentNonNMRStatus"] == CRH)
+)
+# guard > 0 catches both NaN (empty TSV cells) and any -1 sentinels
+first_notes["ever_met_crh_criteria"] = first_notes["ever_published"] | (
+    pd.to_numeric(
+        first_notes["timestampMillisOfFirstNmrDueToMinStableCrhTime"],
+        errors="coerce",
+    ).fillna(0) > 0
+)
+
+# ---- binned first-stage plot ----
+window, bw = 0.2, 0.01
+edges = np.arange(CUTOFF - window, CUTOFF + window + bw / 2, bw)
+sub = first_notes[first_notes["intercept"].between(edges[0], edges[-1])].copy()
+sub["bin"] = pd.cut(sub["intercept"], edges)
+
+fig, ax = plt.subplots(figsize=(7, 4.5))
+for col, marker, label in [
+    ("ever_published", "o", "ever published (ever CRH)"),
+    ("ever_met_crh_criteria", "s", "ever met CRH criteria (incl. held-by-delay)"),
+]:
+    g = sub.groupby("bin", observed=True).agg(
+        p=(col, "mean"), x=("intercept", "mean")
+    )
+    ax.plot(g["x"], g["p"], marker, ms=4, ls="none", label=label)
+ax.axvline(CUTOFF, ls="--", lw=1, color="grey")
+ax.set_xlabel("intercept (running variable, deciding algorithm)")
+ax.set_ylabel("P(indicator)")
+ax.set_ylim(-0.02, 1.02)
+ax.legend(frameon=False, loc="upper left")
+ax.set_title("First stage: publication status by intercept")
+
+# ---- numeric verdict, narrow bands ----
+for lo, hi in [(0.35, 0.40), (0.38, 0.40), (0.39, 0.40), (0.40, 0.42)]:
+    m = first_notes["intercept"].between(lo, hi, inclusive="left")
+    print(
+        f"[{lo:.2f},{hi:.2f}): n={m.sum():6d}  "
+        f"P(ever_pub)={first_notes.loc[m, 'ever_published'].mean():.4f}  "
+        f"P(ever_crit)={first_notes.loc[m, 'ever_met_crh_criteria'].mean():.4f}"
+    )
+
+# ---- binning-free companion: contamination check below cutoff ----
+below = first_notes[first_notes["intercept"] < CUTOFF]
+for col in ["ever_published", "ever_met_crh_criteria"]:
+    print(f"\nBelow-cutoff P(if_written_again) by {col}:")
+    print(below.groupby(col)["if_written_again"].agg(["mean", "size"]))
+
+```
+
+This shows that our secondary indicator of publication status shows a discontinuity near the cutoff, but not a sharp one
+
+The high proportion of 'ever published' just below the cutoff suggests many notes got published and then slipped back below the threshold
+
+We compronmise with a fuzzy RDD
+
 
 # Trad OLS RDD
 
@@ -561,6 +635,7 @@ ax.axvline(c, ls='--', color='k', lw=0.8)
 
 ax.set_xlim(left=0.2, right=0.6)
 #ax.set_xlim(c - 4*h_mse, c + 4*h_mse) 
+ax.set_ylim(0,1)
 
 ax.set_xlabel('note intercept')
 ax.set_ylabel('P(author writes again)')
