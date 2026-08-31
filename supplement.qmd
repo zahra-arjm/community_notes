@@ -11,6 +11,7 @@ abstract: |
 - robust effect for authors a 3rd note (`have_another_note = note_counts[(note_counts >= 3)]`)
 - with authors a 2nd note (`have_another_note = note_counts[(note_counts >= 2)]`)
 - - robust rd not sig, donut RDD sig for 2 "larger holed donuts", ordinary OLS is sig with 0.08 threshold, 
+- RDD is not sharp
 
 
 # Setup & Data {#sec-setup}
@@ -207,6 +208,9 @@ def robust_rdd(x,y,c):
 
 ```
 
+We fix the cumsum=>2 issue, so we have authors who write 2 (not 3) notes as our outcome variable
+We also remind the alignment filter, since this is conditioning on a collider (and makes our RDD artificially sharp)
+
 
 ```{python}
 #| label: load-data, preprocess
@@ -262,6 +266,7 @@ The basis for our RDD is the discontinuity between the intercept and note status
 
 Plotting log(numRatings) vs NoteIntercept, with colours according to Note final status (finalRatingStatus )  
 
+You can see the fuzzy discontinutiy -  some >cutoff notes ae "NEEDS_MORE_RATINGS"
 
 ```{python}
 #| label: intercept-vs-status
@@ -289,9 +294,11 @@ plt.savefig('paper-outputs/scatter_numRatings_NoteIntercept.png', dpi=120, bbox_
 ```
 
 
-Sadly, though, our data record intercept calculated from the full set of ratings, this is not the contemporatious intercept score which determines moment-by-moment publication. It approximates it, but with contamination. Notes pay be published then unpublished as the receive more ratings and their rating degrades, or there may be additional blocks on publication (e.g. requirements on total number or type of ratings, or requirements on intercept stability or a lag before publication). The CN system is not entirely clear about all these details.
+Sadly, though, our data record intercept calculated from the full set of ratings, this is not the contemporatious intercept score which determines moment-by-moment publication. It approximates it, but with contamination. Notes may be published then unpublished as the receive more ratings and their rating degrades, or there may be additional blocks on publication (e.g. requirements on total number or type of ratings, or requirements on intercept stability or a lag before publication). The CN system is not entirely clear about all these details.
 
 These contamination can be seen by plotting indicators of ever having been published against our (final) intercept.
+
+We construct an independent 'ever_published' variable from the `firstNonNMRStatus` and `mostRecentNonNMRStatus` variables. The logic being that if either of these are `CURRENTLY_RATED_HELPFUL` then the Note must have achieved CRH/published status at some point in the past (ie seperate from the finalRatingStatus score)
 
 ```{python}
 #| label: diagnostic
@@ -360,7 +367,9 @@ We compronmise with a fuzzy RDD
 
 # Trad OLS RDD
 
-Just using OLS and an arbitary window
+Our first approach was to use OLS and an arbitary window
+
+This does show an effect, as long as as the window is wide (0.08, it is non-significant at 0.05)
 
 ```{python}
 #| label: OLS-RDD
@@ -425,7 +434,9 @@ print(f"T-statistic for treatment: {t_statistic_treatment:.4f}")
 
 # RDD using rdrobust 
 
-This has the option of using a polynomial fit (which we decline), and uses all points, weigted by proximity to cutoff
+The rdrobust function will estimate the bandwidth from the data, as well as provide various sensitivity checks and allow a fuzzy RDD
+
+It has the option of using a polynomial fit (which we decline), and uses all points, weigted by proximity to cutoff
 
 References for this method
 
