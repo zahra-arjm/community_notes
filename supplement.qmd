@@ -608,6 +608,54 @@ rel_lift = tau / base_local
 
 ```
 
+```{python}
+#| label: reduced form
+
+# --- Step 5: reduced form / ITT alongside the fuzzy LATE (same donut sample) ---
+# x, y, c and d (treatment = publication indicator) are the SAME vectors
+# used in the fuzzy headline call. d is what you passed as fuzzy=... there.
+
+# 1. Fuzzy LATE — grab its MSE-optimal bandwidth so the three rows are comparable
+late = rdrobust(y=y, x=x, c=CUTOFF, fuzzy=fuzzy_sample.ever_published)
+h = float(late.bws.loc["h", "left"])           # common bandwidth for the tie-out
+
+# 2. Reduced form / ITT: sharp RDD of the OUTCOME on x (no fuzzy), at common h
+rf = rdrobust(y=y, x=x, c=CUTOFF, h=h, b=h)
+
+# 3. First stage: sharp RDD of TREATMENT on x, at the same h
+fs = rdrobust(y=fuzzy_sample.ever_published, x=x, c=CUTOFF, h=h, b=h)
+
+def row(res):
+    coef = float(res.coef.loc["Conventional"].iloc[0])
+    ci   = res.ci.loc["Robust"]
+    return coef, float(ci.iloc[0]), float(ci.iloc[1])
+
+rf_c, rf_lo, rf_hi = row(rf)
+fs_c, fs_lo, fs_hi = row(fs)
+la_c, la_lo, la_hi = row(late)
+
+print(f"Common bandwidth h = {h:.4f}\n")
+print(f"Reduced form (ITT):  {rf_c:+.4f}  robust CI [{rf_lo:+.4f}, {rf_hi:+.4f}]")
+print(f"First stage:         {fs_c:+.4f}  robust CI [{fs_lo:+.4f}, {fs_hi:+.4f}]")
+print(f"Fuzzy LATE:          {la_c:+.4f}  robust CI [{la_lo:+.4f}, {la_hi:+.4f}]")
+print(f"\nTie-out check:  RF / FS = {rf_c/fs_c:+.4f}   (should ≈ LATE at common h)")
+
+# eading them in plain terms (numbers you can drop into prose):
+# First stage +0.508. Crossing the 0.4 threshold raises the probability a note is actually published by ~51 percentage points. Strong, t≈23 — no weak-instrument worry.
+# Reduced form / ITT +0.039, CI [−0.060, +0.155]. Crossing the threshold raises the eventual-return rate by ~3.9pp on everyone near the cutoff, regardless of whether their note actually got published. This is the assumption-light number. Usable sentence: "Notes scoring just above 0.4 return to write again 3.9pp more often than those just below (ITT), though this is not statistically distinguishable from zero."
+# Fuzzy LATE +0.076, CI [−0.026, +0.184]. Scaling that ITT by the 51pp first stage gives ~7.6pp on compliers — the notes whose publication status was actually flipped by crossing the cutoff.
+# The honest headline, and the thing worth noticing: both the ITT and the LATE include zero. With a first stage this strong, dividing by it changes the magnitude but not the verdict — if the ITT doesn't clear zero, neither does the LATE. So step 5's payoff isn't rescuing significance (it can't); it's that you can now report the more defensible, fewer-assumptions quantity (the ITT, ~+3.9pp) as your lead, and present the LATE as "what that implies for the notes actually moved." Direction positive, not significant, either way.
+
+
+
+```
+
+
+
+
+
+
+
 Mephi suggested text :
 
 At the MSE-optimal bandwidth (h = `{python} f"{h_mse:.3f}"`) we estimate
@@ -808,7 +856,7 @@ donut_widths = [0.005, 0.010, 0.020]
 rows = []
 
 # Baseline (no donut) for the first row of the table
-r0 = rdrobust(y=y, x=x, c=0.4)
+r0 = rdrobust(y=y, x=x, c=CUTOFF, p=POLY, kernel=KERNEL, fuzzy = fuzzy_sample.ever_published)
 rows.append({
     "donut": "none",
     "n_eff_L": int(r0.N_h[0]),
@@ -823,8 +871,7 @@ rows.append({
 
 for w in donut_widths:
     mask = (x < 0.4 - w) | (x > 0.4 + w)
-    xd, yd = x[mask], y[mask]
-    r = rdrobust(y=yd, x=xd, c=0.4)
+    r = rdrobust(y=y[mask], x=x[mask], c=CUTOFF, p=POLY, kernel=KERNEL, fuzzy = fuzzy_sample[mask].ever_published)
     rows.append({
         "donut": f"±{w:.3f}",
         "n_eff_L": int(r.N_h[0]),
