@@ -203,7 +203,7 @@ def robust_rdd(x,y,c, *, p = 1, kernel = "triangular", fuzzy = None):
     for mult in (0.5, 1.0, 2.0):
         h=h_mse*mult
         b= b_mse*mult # b and h covary so that rho stays fixed (as dervied from intial fit)
-        r = rdrobust(y=y, x=x, c=c,
+        r = rdrobust(y=y, x=x, c=c, p=p, kernel=kernel, fuzzy=fuzzy,
                     h=h, b=b)
         tau  = float(r.coef.iloc[0, 0]) # note that tau is for the conventional model
         lo   = float(r.ci.iloc[2, 0]) #but the CI is for the robust model
@@ -315,10 +315,6 @@ We construct an independent 'ever_published' variable from the `firstNonNMRStatu
 
 CRH = "CURRENTLY_RATED_HELPFUL"
 
-first_notes["ever_published"] = (
-    (first_notes["firstNonNMRStatus"] == CRH)
-    | (first_notes["mostRecentNonNMRStatus"] == CRH)
-)
 # guard > 0 catches both NaN (empty TSV cells) and any -1 sentinels
 first_notes["ever_met_crh_criteria"] = first_notes["ever_published"] | (
     pd.to_numeric(
@@ -583,16 +579,11 @@ donut_mask = (first_notes['intercept'] - CUTOFF).abs() >= DONUT
 fuzzy_sample = first_notes[donut_mask]
 y=fuzzy_sample['if_written_again'].astype(int)
 x=fuzzy_sample['intercept']
-#c = CUTOFF
-
-
 
 fit = robust_rdd(y=y, x=x,c=CUTOFF,
     p=POLY, kernel=KERNEL,
     fuzzy=fuzzy_sample.ever_published,
     )
-
-
 
 ```
 
