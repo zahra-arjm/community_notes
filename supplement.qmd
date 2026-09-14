@@ -42,6 +42,7 @@ plotloc   = 'paper-outputs'                # subfolder to save plots etc
 re_auth_thresh = 2                         # threshold for an author to count as writing again (number of notes)
 POLY = 1                                   # polynomial order for rdrobust (ie linear)
 KERNEL = 'triangular'                      # kernel for rdrobust (default, but make explicit)
+ALIGNMENT = False                       # filter for aligned notes (is conditioning   on a post-treatment outcome, so verboten)
 # -------------------------------------------------------------------------
 
 ```
@@ -122,8 +123,8 @@ def get_first_notes(rated, note_from, note_to, cutoff, *, re_auth_thresh = 2):
     # filter to only notes written by the major algorithms
     # define models (algorithms to include))
     #models = ['CoreModel (v1.1)'] # >70% of Notes,
-    models = ['CoreModel (v1.1)', 'ExpansionModel (v1.1)', 'CoreWithTopicsModel (v1.1)']
-    #models = ['CoreModel (v1.1)', 'ExpansionModel (v1.1)', 'ExpansionPlusModel (v1.1)', 'CoreWithTopicsModel (v1.1)']
+    #models = ['CoreModel (v1.1)', 'ExpansionModel (v1.1)', 'CoreWithTopicsModel (v1.1)']
+    models = ['CoreModel (v1.1)', 'ExpansionModel (v1.1)', 'ExpansionPlusModel (v1.1)', 'CoreWithTopicsModel (v1.1)']
     # select on models
     first_notes = first_notes[first_notes['decidedBy'].isin(models)]
     
@@ -154,21 +155,23 @@ def get_first_notes(rated, note_from, note_to, cutoff, *, re_auth_thresh = 2):
 
 
 
-    # keep only notes with enough rating
-    #print("...Dropping", len(first_notes) - len(first_notes[first_notes['rating_group'] == 1]), "notes with too few ratings")
+    #Version 1, only keep only notes with enough rating
+    #Version 2, only keep notes with >0 ratings
     first_notes = first_notes[first_notes['rating_group'] == 1]
-    print("Now we have " + str(len(first_notes)) + " notes which have enough ratings")
+    print("Now we have " + str(len(first_notes)) + " notes which have >0 ratings")
 
     # keep only aligned notes (current status and final status align)
-    
-    mask_alignment = (((first_notes["intercept"] > cutoff) & (first_notes["finalRatingStatus"] == "CURRENTLY_RATED_HELPFUL")) |
-        ((first_notes["intercept"] < cutoff) & (first_notes["finalRatingStatus"] != "CURRENTLY_RATED_HELPFUL")))
-    #print("Dropping", len(first_notes) - len(first_notes[mask_alignment]), "notes with different current and final status")
-    #first_notes = first_notes[mask_alignment]
-    #print("Now we have " + str(len(first_notes)) + " aligned notes")
-    print("--------         No filter for alignment")
+    if ALIGNMENT:
+        mask_alignment = (((first_notes["intercept"] > cutoff) & (first_notes["finalRatingStatus"] == "CURRENTLY_RATED_HELPFUL")) |
+            ((first_notes["intercept"] < cutoff) & (first_notes["finalRatingStatus"] != "CURRENTLY_RATED_HELPFUL")))
+        # Altrenative
+        #mask_alignment = (rated['lockedStatus'].astype(str)!='None') #new
+        first_notes = first_notes[mask_alignment]
+        print("Now we have " + str(len(first_notes)) + " aligned notes")
+    else:
+        print("--------         No filter for alignment")
 
-   
+  
     print("FINAL total", len(first_notes), "Notes")
     print("of which author writes again = ", len(first_notes[first_notes['if_written_again']]))
     print(f"\nNB current (final), not Max, score")
@@ -234,9 +237,10 @@ rated = pd.read_parquet('./data2026post/' + 'rated_notes_compact.parquet', engin
 print("Imported data for " + str(len(rated)) + " notes") # 2747570 for 2026 data (was 1,946,619 for 2025 data)
 # For RDD we need to remove the notes which don't have enough rating to be helpful, so marking this now
 '''Zahra: I wanted to check which algorithms were used most often. 5 used to be the threshold for getting published if intercept and factor were in the range. If I did not use this criteria, some other algorithms became the top ones (after the core algorithm, of course) which did not have notes eligible for getting published.'''
-## UPDATE This now accounts for the change in minimum number of ratings need before a Note published
-rated['rating_group'] = np.where((rated.createdAt >= pd.Timestamp(2025,4,8)) & (rated['numRatings'] >= 10) |
-                                    (rated.createdAt < pd.Timestamp(2025,4,8)) & (rated['numRatings'] >= 5), 1, 0)
+# ## UPDATE This now accounts for the change in minimum number of ratings need before a Note published
+# rated['rating_group'] = np.where((rated.createdAt >= pd.Timestamp(2025,4,8)) & (rated['numRatings'] >= 10) |
+#                                     (rated.createdAt < pd.Timestamp(2025,4,8)) & (rated['numRatings'] >= 5), 1, 0)
+rated['rating_group'] = (rated['numRatings'] > 0)
 
 # proportion of Notes decided by each algorithm
 rated[rated['rating_group'] == 1]['decidedBy'].value_counts(normalize=True)
