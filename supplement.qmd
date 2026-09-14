@@ -2,19 +2,36 @@
 title: "Supplement for RDD results"
 date: now
 abstract: |
-  Quarto document renders the outputs for the full set of RDD results (sensitivity check etc). 
-  Results are also saved in /paper-outputs as a .tex fragments so they can be pulled into overleaf directly
+  Supplemental material to support the RDD result in Arjmandi-Lari, Z., Mantzarlis, A., Stafford, T. (2025). [Threats to the sustainability of Community Notes on X](https://arxiv.org/abs/2510.00650). arXiv preprint arXiv:2510.00650 
 ---
 
-# Topline
+# Introduction
 
-- robust effect for authors a 3rd note (`have_another_note = note_counts[(note_counts >= 3)]`)
-- with authors a 2nd note (`have_another_note = note_counts[(note_counts >= 2)]`)
-- - robust rd not sig, donut RDD sig for 2 "larger holed donuts", ordinary OLS is sig with 0.08 threshold, 
-- RDD is not sharp
+Find all of this in the repo <https://github.com/zahra-arjm/community_notes>
+
+This PDF made by a quarto document <supplement.qmd>. The quarto file renders the outputs for the full set of RDD results (sensitivity check etc), and also pushes some outputs to  /paper-outputs as a .tex fragments so they can be pulled into overleaf directly.
+
+
+## Topline results and v1-v2 chanegs
+
+- Since v1 we adopt a more sophisticated RDD method, fix bugs and are stricter on best practice with respect to causal inference. There is still a positive effect, but it is not significant (confidence bounds overlap effect = 0).
+
+- A zero-indexing bug meant we were looking at the effect of first note status on 3rd note publication. This is now fixed
+
+- There is (remains) a robust effect for authoring a 3rd note (`have_another_note = note_counts[(note_counts >= 3)]`)
+
+- We discover the RDD is not sharp, due to the fact that we have the score (intercept) from the data cut off point, which is NOT the intercept at the point when the note was or was not published (scores continuing to evolve post publication). This non-sharpness can be dealth by running a fuzzy-RDD which account for the change in probabilities of being published at different intercept scores (there is still a discontinuity in these probailities)
+
+- In addition there is a special population of Notes just below the cutoff threshold (intercept 0.39 - 0.40) which have a high probability of having been published. This is due to a documented *feature* of the CN system, whereby notes are protected from being unpublished when their score drops by a small amount (<0.1). These can be handled by using a "Donut" RDD, where notes +/- 0.01 of the cutoff are excluded
+
+- To do all of this we move from using OLS to the robust RDD package
+
+- We also run additional sensitivity checks and robustness checks (e.g. local density check around threshold)
 
 
 # Setup & Data {#sec-setup}
+
+To see the code which is running you need to open the .qmd file
 
 ```{python}
 #| label: setup
@@ -42,7 +59,7 @@ plotloc   = 'paper-outputs'                # subfolder to save plots etc
 re_auth_thresh = 2                         # threshold for an author to count as writing again (number of notes)
 POLY = 1                                   # polynomial order for rdrobust (ie linear)
 KERNEL = 'triangular'                      # kernel for rdrobust (default, but make explicit)
-ALIGNMENT = False                       # filter for aligned notes (is conditioning   on a post-treatment outcome, so verboten)
+ALIGNMENT = False                          # filter for aligned notes (is conditioning   on a post-treatment outcome, so verboten)
 # -------------------------------------------------------------------------
 
 ```
@@ -220,7 +237,7 @@ def robust_rdd(x,y,c, *, p = 1, kernel = "triangular", fuzzy = None):
 ```
 
 We fix the cumsum=>2 issue, so we have authors who write 2 (not 3) notes as our outcome variable
-We also remind the alignment filter, since this is conditioning on a collider (and makes our RDD artificially sharp)
+We also remove the alignment filter, since this is conditioning on a collider (and makes our RDD artificially sharp)
 
 
 ```{python}
@@ -377,14 +394,14 @@ We compronmise with a fuzzy RDD
 
 Our first approach was to use OLS and an arbitary window
 
-This was signficant with the aligned notes, and a wide window (0.08, it was non-significant at 0.05), but now is not significant at the 0.08 window
+This is now signficant with a wide window (0.08, it was non-significant at 0.05), and a 0.01 donut (not significant if donut = 0)
 
 ```{python}
 #| label: OLS-RDD
 
-bandwidth = 0.08 #window around cutoff
+bandwidth = 0.05 #window around cutoff
 print("bandwidth = ", bandwidth)
-DONUT = 0.00 # exluding notes near cutoff, we'll change later
+DONUT = 0.01 # exluding notes near cutoff, we'll change later
 
 # data for OLS RDD
 running_variable = first_notes['intercept']
