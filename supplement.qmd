@@ -11,27 +11,29 @@ Find all of this in the repo <https://github.com/zahra-arjm/community_notes>
 
 This PDF made by a quarto document <supplement.qmd>. The quarto file renders the outputs for the full set of RDD results (sensitivity check etc), and also pushes some outputs to  /paper-outputs as a .tex fragments so they can be pulled into overleaf directly.
 
+To see the code which is running you need to open the .qmd file. As a PDF this shows commentary (like this text) and code outputs (in text, and images).
+
+AI declaration: all the words are human-written, all the logic and claims are human endorsed (by TS, so they may contain errors). The code was co-written with using an AI agent, some comments from the agent are left in the code (invisible in the PDF).
 
 ## Topline results and v1-v2 chanegs
 
-- Since v1 we adopt a more sophisticated RDD method, fix bugs and are stricter on best practice with respect to causal inference. There is still a positive effect, but it is not significant (confidence bounds overlap effect = 0).
+- Since v1 we adopt a more sophisticated RDD method, fix bugs and are stricter on best practice with respect to causal inference. There is still a positive effect, but it is not significant (confidence bounds overlap an effect of 0).
 
-- A zero-indexing bug meant we were looking at the effect of first note status on 3rd note publication. This is now fixed
+- A zero-indexing bug meant previously we were looking at the effect of first note status on 3rd note publication. This is now fixed.
 
-- There is (remains) a robust effect for authoring a 3rd note (`have_another_note = note_counts[(note_counts >= 3)]`)
+- There is (remains) a robust effect for authoring a 3rd note (`have_another_note = note_counts[(note_counts >= 3)]`).
 
-- We discover the RDD is not sharp, due to the fact that we have the score (intercept) from the data cut off point, which is NOT the intercept at the point when the note was or was not published (scores continuing to evolve post publication). This non-sharpness can be dealth by running a fuzzy-RDD which account for the change in probabilities of being published at different intercept scores (there is still a discontinuity in these probailities)
+- We discover the RDD is not sharp, due to the fact that we have the score (intercept) from the data cut off point, which is NOT the intercept at the point when the note was or was not published (scores continuing to evolve post publication). This non-sharpness can be dealt with by running a fuzzy-RDD which accounts for the change in probabilities of being published at different intercept scores (there is still a discontinuity in these probailities).
 
-- In addition there is a special population of Notes just below the cutoff threshold (intercept 0.39 - 0.40) which have a high probability of having been published. This is due to a documented *feature* of the CN system, whereby notes are protected from being unpublished when their score drops by a small amount (<0.1). These can be handled by using a "Donut" RDD, where notes +/- 0.01 of the cutoff are excluded
+- In addition there is a special population of Notes just below the cutoff threshold (intercept 0.39 - 0.40) which have a high probability of having been published. This is due to a documented *feature* of the CN system, whereby notes are protected from being unpublished when their score drops by a small amount (<0.1). These can be handled by using a "Donut" RDD, where notes +/- 0.01 of the cutoff are excluded 
 
 - To do all of this we move from using OLS to the robust RDD package
 
 - We also run additional sensitivity checks and robustness checks (e.g. local density check around threshold)
 
 
-# Setup & Data {#sec-setup}
+# Setup & Data Import {#sec-setup}
 
-To see the code which is running you need to open the .qmd file
 
 ```{python}
 #| label: setup
@@ -240,13 +242,9 @@ We fix the cumsum=>2 issue, so we have authors who write 2 (not 3) notes as our 
 We also remove the alignment filter, since this is conditioning on a collider (and makes our RDD artificially sharp)
 
 
+
 ```{python}
 #| label: load-data, preprocess
-#| cache: true
-
-# Remember, if we alter the get_first_notes function we need force a cache refresh
-# can do with quarto render --cache-refresh
-
 
 rated = pd.read_parquet('./data2026post/' + 'rated_notes_compact.parquet', engine='auto')
 
@@ -273,6 +271,7 @@ first_notes = get_first_notes(rated, note_from, note_to, CUTOFF,re_auth_thresh =
 
 
 ```
+We are now also using Notes evaluated by `{python} f"{len(first_notes['decidedBy'].unique())}" ` models
 
 # Diagnostic Plots {#sec-plots}
 
@@ -291,7 +290,7 @@ plt.xlabel('log(numRatings)')
 plt.ylabel('count')
 ```
 
-The basis for our RDD is the discontinuity between the intercept and note status (which defines publicatuon / the possiblity for publication)
+The basis for our RDD is the discontinuity between the intercept and note status (which defines publication / the possiblity for publication)
 
 Plotting log(numRatings) vs NoteIntercept, with colours according to Note final status (finalRatingStatus )  
 
@@ -323,7 +322,7 @@ plt.savefig('paper-outputs/scatter_numRatings_NoteIntercept.png', dpi=120, bbox_
 ```
 
 
-Sadly, though, our data record intercept calculated from the full set of ratings, this is not the contemporatious intercept score which determines moment-by-moment publication. It approximates it, but with contamination. Notes may be published then unpublished as the receive more ratings and their rating degrades, or there may be additional blocks on publication (e.g. requirements on total number or type of ratings, or requirements on intercept stability or a lag before publication). The CN system is not entirely clear about all these details.
+Sadly, though, our data record intercept calculated from the full set of ratings, this is not the contemporanious intercept score which determines moment-by-moment publication. It approximates it, but with contamination. Notes may be published then unpublished as they receive more ratings and their rating degrades, or there may be additional blocks on publication (e.g. requirements on total number or type of ratings, or requirements on intercept stability or a lag before publication). The CN system is not entirely clear about all these details.
 
 These contamination can be seen by plotting indicators of ever having been published against our (final) intercept.
 
@@ -387,19 +386,19 @@ This shows that our secondary indicator of publication status shows a discontinu
 
 The high proportion of 'ever published' just below the cutoff suggests many notes got published and then slipped back below the threshold
 
-We compronmise with a fuzzy RDD
+We deal with this by a) using a fuzzy RDD and b) excluding the just below cutoff points by using the donut method
 
 
 # Trad OLS RDD
 
 Our first approach was to use OLS and an arbitary window
 
-This is now signficant with a wide window (0.08, it was non-significant at 0.05), and a 0.01 donut (not significant if donut = 0)
+This is now signficant with a wide window (0.08, it was non-significant at 0.05), and a 0.01 donut (but not significant if donut = 0, because of the contamination in the 0.39-0.40 zone))
 
 ```{python}
 #| label: OLS-RDD
 
-bandwidth = 0.05 #window around cutoff
+bandwidth = 0.08 #window around cutoff
 print("bandwidth = ", bandwidth)
 DONUT = 0.01 # exluding notes near cutoff, we'll change later
 
@@ -458,6 +457,7 @@ print(f"T-statistic for treatment: {t_statistic_treatment:.4f}")
 
 ```
 
+This OLS approach provides a bridge to the fuzzy-RDD approach, which uses robust RDD to esimate the window size (as well as bringing in a bunch of statistical machinery which is best practice for RDDs)
 
 # RDD using fuzzy rdrobust with a donut 
 
@@ -537,10 +537,11 @@ for d in DONUT_VARIATIONS:
 
 So this is saying that if you exclude at 0 (no exclusions) or 0.05 our running variable isn't cleanly associated with "ever published" (at 0.0 it is n.s. at 0.05 it is sig, but negative). At 0.01 the effect is positive and robust (significant), so this justifies the donut
 
-The flip in significance shows significant contamination at the cutoff (those just below *more* likely to be ever published than those just above!). So the argument is not just excluding problematic points, but the RDD is only possible against a background of linear stablitity
+The flip in significance shows significant contamination at the cutoff (those just below *more* likely to be ever published than those just above!). So the justification for the donut is not just that it excludes problematic points, but the RDD is only possible against a background of linear stablitity (which would not exist without the donut).
 
-Note also the negligable drop in N with donut 0.01
+Note also the negligable drop in N with donut 0.01. We're not losing too much data this way.
 
+We can visualise the donut, and this in particular provides the justification (showing that our contamination of high p(ever_published) Notes below the cutoff is particularly high in the 0.39-0.40)
 
 ```{python}
 #| label: RDD-donut-visualisation
@@ -583,9 +584,7 @@ So the [0.39, 0.40) plateau is published notes whose scores sagged after publica
 
 ```
 
-So this show the operation fo the inertiaDelta = 0.01 rule, see scoring_rules.py line 1521. Notes which are published and drop 0.01 or less keep their status `https://github.com/twitter/communitynotes/blob/main/scoring/src/scoring/scoring_rules.py`
-
-nb OLS RDD now significant at 0.08 window with cutoff at 0.39, which is nice OR with a cutoff at 0.4 and a donut of 0.01
+So this shows the operation fo the inertiaDelta = 0.01 rule, see scoring_rules.py line 1521. Notes which are published and drop 0.01 or less keep their status `https://github.com/twitter/communitynotes/blob/main/scoring/src/scoring/scoring_rules.py`
 
 The OLS serves as a sanity check, but now let's run the full fuzzy RDD 
 
@@ -608,6 +607,7 @@ fit = robust_rdd(y=y, x=x,c=CUTOFF,
 
 ```
 
+This is positive but non-significant
 
 # Converting rate to baseline outcome rate
 
@@ -672,25 +672,12 @@ print(f"\nTie-out check:  RF / FS = {rf_c/fs_c:+.4f}   (should ≈ LATE at commo
 ```
 
 
-
-
-
-
-
-Mephi suggested text :
-
-At the MSE-optimal bandwidth (h = `{python} f"{h_mse:.3f}"`) we estimate
-$\hat{\tau}$ = `{python} f"{tau*100:+.1f}"`pp in the probability of writing a second
-note (conventional local-linear estimator; robust bias-corrected 95% CI
+The RD robust method identifies a MSE-optimal bandwidth of h = `{python} f"{h_mse:.3f}"`), and provides an estimated treatmennt effect of  ↓ 
+$\hat{\tau}$ = `{python} f"{tau:+.3f}"`. This is reflects `{python} f"{tau*100:+.1f}"`percentage point increase in the probability of writing a second note if an author's first note is published (conventional local-linear estimator; robust bias-corrected 95% CI
 [`{python} f"{ci_lo*100:+.1f}"`, `{python} f"{ci_hi*100:+.1f}"`],
-p = `{python} f"{p_rob:.2f}"`).
+p = `{python} f"{p_rob:.2f}"`). Calonico et al., 2014
 
-Mephi suggested text: Untreated authors at the cutoff re-author at
-`{python} f"{base_local:.1%}"`; treated authors at the cutoff
-re-author at ~`{python} f"{treated_local:.1%}"`. Treatment
-effect = `{python} f"{tau*100:.1f}"`pp, a
-`{python} f"{rel_lift:.1%}"` relative lift over the
-counterfactual baseline.
+The rate of republishing for Notes which fall before thebove the cutoff of ~`{python} f"{treated_local:.1%}"`. The treatment effect of `{python} f"{tau*100:.1f}"`pp, imnplies a `{python} f"{rel_lift:.1%}"` relative lift over the counterfactual baseline, however this difference in non-significant.
 
 
 # Showing an illustrative RDD plot
@@ -765,7 +752,9 @@ print(coef.to_string())
 print(f"\nwrote {STEM}_meta.json, {STEM}_coef.csv")
 ```
 
-Now with the local-lineat fits (over the rdrobust defined window)
+This shows all the data, and misleads because RD robust weights data closer to the cutoff more.
+
+Now with the local-lineat fits (over the rdrobust defined window), which more accurately represents what the model is doing
 
 ```{python}
 #| label: RDD-robust-plot-matplotlib
@@ -805,7 +794,7 @@ ax.plot(gl, vl, 'r-', lw=2) #left
 ax.plot(gr, vr, 'r-', lw=2) #right
 ax.axvline(CUTOFF, ls='--', color='k', lw=0.8)
 
-ax.set_xlim(left=0.2, right=0.6)
+ax.set_xlim(left=0.27, right=0.53)
 #ax.set_xlim(c - 4*h_mse, c + 4*h_mse) 
 ax.set_ylim(0,1)
 
@@ -829,16 +818,14 @@ print(f"plot gap at c = {gap:+.4f}  vs  conventional tau = {tau:+.4f}")
 
 # Robustness check - density test
 
-Next, manipulation test/density smoothness at cutoff 
+Next, manipulation test/density smoothness at cutoff. The density test is standard for RDD, to show that nothing weird is happening in *counts* at the cutoff.
 
-if units (people) can select to be just above cutoff then density will not be smooth
-(think the pass grade on an exam)
-
+This also, incidentally, shows the donut cut
 
 ```{python}
 #| label: RDD-density
 
-binW = 0.02 #window around cutoff
+binW = h_mse #0.05 #window around cutoff
 print("Inspecting density with a window of +/o = ", binW)
 
 dens = rddensity(X=x, c=CUTOFF, binoW=binW) # binoW forces window to be 0.38 to 0.42, which is a stricter test of balance around threshold
@@ -861,58 +848,53 @@ plt.xlabel('intercept'); plt.ylabel('count')
 plt.show()
 ```
 
-A wider window shows that the density does progressively decrease up to the cutoff, 
-but no signs of sub-threshold notes being shifted to above threshold (decline not matched by leap post-cutoff)
+The density does progressively decrease up to the cutoff, but there are but no signs of sub-threshold notes being shifted to above threshold (decline not matched by leap post-cutoff)
 
 
 # Robustness check - Donut RDD
 
-Exluding results at the cutoff
+We can run the analysis with different size donuts. This isn't really necessary, since our donut size is defined from first principles (the 0.1 hysterisis on Notes getting unpublished), but let's have a look anyway).
 
 ```{python}
 #| label: RDD-donut
 
 
-donut_widths = [0.005, 0.010, 0.020]
+donut_widths = [0, 0.005, 0.010, 0.020]
 rows = []
 
-# Baseline (no donut) for the first row of the table
-r0 = rdrobust(y=y, x=x, c=CUTOFF, p=POLY, kernel=KERNEL, fuzzy = fuzzy_sample.ever_published)
-rows.append({
-    "donut": "none",
-    "n_eff_L": int(r0.N_h[0]),
-    "n_eff_R": int(r0.N_h[1]),
-    "h": round(float(r0.bws.iloc[0, 0]), 3),
-    "coef_conv": round(float(r0.coef.iloc[0, 0]), 4),
-    "se_conv":   round(float(r0.se.iloc[0, 0]),   4),
-    "p_robust":  round(float(r0.pv.iloc[2, 0]),   4),
-    "ci_robust_lo": round(float(r0.ci.iloc[2, 0]), 4),
-    "ci_robust_hi": round(float(r0.ci.iloc[2, 1]), 4),
-})
+for DONUT in donut_widths:
 
-for w in donut_widths:
-    mask = (x < 0.4 - w) | (x > 0.4 + w)
-    r = rdrobust(y=y[mask], x=x[mask], c=CUTOFF, p=POLY, kernel=KERNEL, fuzzy = fuzzy_sample[mask].ever_published)
+    donut_mask = (first_notes['intercept'] - CUTOFF).abs() >= DONUT
+    fuzzy_sample = first_notes[donut_mask]
+    y=fuzzy_sample['if_written_again'].astype(int)
+    x=fuzzy_sample['intercept']
+
+    fit = rdrobust(y=y, x=x,c=CUTOFF,
+        p=POLY, kernel=KERNEL,
+        fuzzy=fuzzy_sample.ever_published,
+        )
+
     rows.append({
-        "donut": f"±{w:.3f}",
-        "n_eff_L": int(r.N_h[0]),
-        "n_eff_R": int(r.N_h[1]),
-        "h": round(float(r.bws.iloc[0, 0]), 3),
-        "coef_conv": round(float(r.coef.iloc[0, 0]), 4),
-        "se_conv":   round(float(r.se.iloc[0, 0]),   4),
-        "p_robust":  round(float(r.pv.iloc[2, 0]),   4),
-        "ci_robust_lo": round(float(r.ci.iloc[2, 0]), 4),
-        "ci_robust_hi": round(float(r.ci.iloc[2, 1]), 4),
+        "donut": f"±{DONUT:.3f}",
+        "n_eff_L": int(fit.N_h[0]),
+        "n_eff_R": int(fit.N_h[1]),
+        "h": round(float(fit.bws.iloc[0, 0]), 3),
+        "coef_conv": round(float(fit.coef.iloc[0, 0]), 4),
+        "se_conv":   round(float(fit.se.iloc[0, 0]),   4),
+        "p_robust":  round(float(fit.pv.iloc[2, 0]),   4),
+        "ci_robust_lo": round(float(fit.ci.iloc[2, 0]), 4),
+        "ci_robust_hi": round(float(fit.ci.iloc[2, 1]), 4),
     })
 
 df = pd.DataFrame(rows)
 print(df.to_string(index=False))
 ```
 
+This shows that the effect never gets significant at any donut width (ie the non-effect is robust). You can see also that the donut = 0 row is aberant (coefficient has negative sign), which is due to the contamination which justified a non-zero donut in the first place
 
 # Sensitivity check - RDD sensitivity with different cutoffs
 
-NB Only a cutoff of 0.4 makes sense in terms of the CN publication mechanism. Therefore we expect other thresholds to show now effect (definitely below 0.4, cutoffs above 0.4 will include some published notes above and below that cutoffs, so if there is a true effect may report an attenuated form of that)
+Only a cutoff of 0.4 makes sense in terms of the CN publication mechanism. Therefore we expect other thresholds to show no effect (definitely below 0.4, cutoffs above 0.4 will include some published notes above and below that cutoffs, so if there is a true effect may report an attenuated form of that. We can adjust for this by running the RDD on the data above 0.4 only for tresholds above 0.4)
 
 
 ```{python}
@@ -927,17 +909,17 @@ c=0.45;robust_rdd(x[mask],y[mask],c) # all ns and inconsistent effect directions
 
 ```
 
-All these are non-significant
+All these are non-significant and the effect esimates are close to zero
 
 
 
 # Sensitivity check - data for different time windows
 
+We skip this, since there is no positive result to interrogate
+
 ```{python}
 #| label: RDD-sensitivity-time
-
-
-
+#| eval: false
 
 # define timeranges 
 note_from = pd.Timestamp(2025, 4, 8)
@@ -958,7 +940,7 @@ fit = robust_rdd(x,y,CUTOFF)
 note_from = pd.Timestamp(2024, 1, 1)
 note_to = pd.Timestamp(2025, 4, 7) #up to the april 2025 change
 
-print("PERIOD 1, from " + note_from.strftime("%Y-%m-%d") + " to " + note_to.strftime("%Y-%m-%d"))
+print("PERIOD 2, from " + note_from.strftime("%Y-%m-%d") + " to " + note_to.strftime("%Y-%m-%d"))
 
 # process data to produce running var and outcome var
 fn = get_first_notes(rated, note_from, note_to, CUTOFF, re_auth_thresh = re_auth_thresh)
