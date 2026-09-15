@@ -25,7 +25,7 @@ AI declaration: all the words are human-written, all the logic and claims are hu
 
 - We discover the RDD is not sharp, due to the fact that we have the score (intercept) from the data cut off point, which is NOT the intercept at the point when the note was or was not published (scores continuing to evolve post publication). This non-sharpness can be dealt with by running a fuzzy-RDD which accounts for the change in probabilities of being published at different intercept scores (there is still a discontinuity in these probailities).
 
-- In addition there is a special population of Notes just below the cutoff threshold (intercept 0.39 - 0.40) which have a high probability of having been published. This is due to a documented *feature* of the CN system, whereby notes are protected from being unpublished when their score drops by a small amount (<0.1). These can be handled by using a "Donut" RDD, where notes +/- 0.01 of the cutoff are excluded 
+- In addition there is a special population of Notes just below the cutoff threshold (intercept 0.39 - 0.40) which have a high probability of having been published. This is due to a documented *feature* of the CN system, whereby notes are protected from being unpublished when their score drops by a small amount (<0.01). These can be handled by using a "Donut" RDD, where notes +/- 0.01 of the cutoff are excluded 
 
 - To do all of this we move from using OLS to the robust RDD package
 
@@ -263,7 +263,7 @@ rated[rated['rating_group'] == 1]['decidedBy'].value_counts(normalize=True)
 
 # define timeranges for Author's first created note
 note_from = pd.Timestamp(2024, 1, 1)
-note_to = pd.Timestamp(2026, 6, 2)
+note_to = pd.Timestamp(2026, 1, 1)
 #(follow up can be at any point)
 
 # process data to produce running var and outcome var
@@ -535,7 +535,7 @@ for d in DONUT_VARIATIONS:
 ```
 
 
-So this is saying that if you exclude at 0 (no exclusions) or 0.05 our running variable isn't cleanly associated with "ever published" (at 0.0 it is n.s. at 0.05 it is sig, but negative). At 0.01 the effect is positive and robust (significant), so this justifies the donut
+So this is saying that if you exclude at 0 (no exclusions) or 0.005 our running variable isn't cleanly associated with "ever published" (at 0.0 coefficient is close to zero (and n.s). at 0.05 it is negative (and n.s.). At 0.01 the effect is positive and robust (significant), so this justifies the donut
 
 The flip in significance shows significant contamination at the cutoff (those just below *more* likely to be ever published than those just above!). So the justification for the donut is not just that it excludes problematic points, but the RDD is only possible against a background of linear stablitity (which would not exist without the donut).
 
@@ -575,12 +575,12 @@ ax.set_ylim(-0.02, 1.02)
 ax.legend(frameon=False, loc="upper left")
 plt.show()
 
-'''Mephi:
-Why: the platform has a documented hysteresis rule of exactly 0.01. I just pulled the open-source scorer (github.com/twitter/communitynotes):
-crhThreshold = 0.40 and inertiaDelta = 0.01 — scoring/src/scoring/mf_base_scorer.py:178,188
-AddCRHInertia rule: a note that is already CRH keeps its status while its intercept stays within [crhThreshold − inertiaDelta, crhThreshold) — i.e. [0.39, 0.40). Class in scoring_rules.py:1521, docstring literally says "notes with intercepts in a defined range (e.g. 0.01 below the general threshold)"; instantiated with crhThreshold - inertiaDelta in note_ratings.py:771.
-So the [0.39, 0.40) plateau is published notes whose scores sagged after publication but whose status is being held up by the inertia rule. Below 0.39 the inertia protection ends, the plateau collapses — hence the sharp break your plot shows precisely at the grey band's left edge.
-'''
+# '''Mephi:
+# Why: the platform has a documented hysteresis rule of exactly 0.01. I just pulled the open-source scorer (github.com/twitter/communitynotes):
+# crhThreshold = 0.40 and inertiaDelta = 0.01 — scoring/src/scoring/mf_base_scorer.py:178,188
+# AddCRHInertia rule: a note that is already CRH keeps its status while its intercept stays within [crhThreshold − inertiaDelta, crhThreshold) — i.e. [0.39, 0.40). Class in scoring_rules.py:1521, docstring literally says "notes with intercepts in a defined range (e.g. 0.01 below the general threshold)"; instantiated with crhThreshold - inertiaDelta in note_ratings.py:771.
+# So the [0.39, 0.40) plateau is published notes whose scores sagged after publication but whose status is being held up by the inertia rule. Below 0.39 the inertia protection ends, the plateau collapses — hence the sharp break your plot shows precisely at the grey band's left edge.
+# '''
 
 ```
 
@@ -661,11 +661,7 @@ print(f"First stage:         {fs_c:+.4f}  robust CI [{fs_lo:+.4f}, {fs_hi:+.4f}]
 print(f"Fuzzy LATE:          {la_c:+.4f}  robust CI [{la_lo:+.4f}, {la_hi:+.4f}]")
 print(f"\nTie-out check:  RF / FS = {rf_c/fs_c:+.4f}   (should ≈ LATE at common h)")
 
-# eading them in plain terms (numbers you can drop into prose):
-# First stage +0.508. Crossing the 0.4 threshold raises the probability a note is actually published by ~51 percentage points. Strong, t≈23 — no weak-instrument worry.
-# Reduced form / ITT +0.039, CI [−0.060, +0.155]. Crossing the threshold raises the eventual-return rate by ~3.9pp on everyone near the cutoff, regardless of whether their note actually got published. This is the assumption-light number. Usable sentence: "Notes scoring just above 0.4 return to write again 3.9pp more often than those just below (ITT), though this is not statistically distinguishable from zero."
-# Fuzzy LATE +0.076, CI [−0.026, +0.184]. Scaling that ITT by the 51pp first stage gives ~7.6pp on compliers — the notes whose publication status was actually flipped by crossing the cutoff.
-# The honest headline, and the thing worth noticing: both the ITT and the LATE include zero. With a first stage this strong, dividing by it changes the magnitude but not the verdict — if the ITT doesn't clear zero, neither does the LATE. So step 5's payoff isn't rescuing significance (it can't); it's that you can now report the more defensible, fewer-assumptions quantity (the ITT, ~+3.9pp) as your lead, and present the LATE as "what that implies for the notes actually moved." Direction positive, not significant, either way.
+
 
 
 
@@ -677,7 +673,7 @@ $\hat{\tau}$ = `{python} f"{tau:+.3f}"`. This is reflects `{python} f"{tau*100:+
 [`{python} f"{ci_lo*100:+.1f}"`, `{python} f"{ci_hi*100:+.1f}"`],
 p = `{python} f"{p_rob:.2f}"`). Calonico et al., 2014
 
-The rate of republishing for Notes which fall before thebove the cutoff of ~`{python} f"{treated_local:.1%}"`. The treatment effect of `{python} f"{tau*100:.1f}"`pp, imnplies a `{python} f"{rel_lift:.1%}"` relative lift over the counterfactual baseline, however this difference in non-significant.
+The rate of republishing for Notes which fall before the cutoff is ~`{python} f"{base_local:.1%}"`. The treatment effect of `{python} f"{tau*100:.1f}"`pp, imnplies a `{python} f"{rel_lift:.1%}"` relative lift over the counterfactual baseline, however this difference is non-significant.
 
 
 # Showing an illustrative RDD plot
@@ -825,7 +821,7 @@ This also, incidentally, shows the donut cut
 ```{python}
 #| label: RDD-density
 
-binW = h_mse #0.05 #window around cutoff
+binW = 0.02 #h_mse #0.05 #window around cutoff
 print("Inspecting density with a window of +/o = ", binW)
 
 dens = rddensity(X=x, c=CUTOFF, binoW=binW) # binoW forces window to be 0.38 to 0.42, which is a stricter test of balance around threshold
@@ -851,9 +847,11 @@ plt.show()
 The density does progressively decrease up to the cutoff, but there are but no signs of sub-threshold notes being shifted to above threshold (decline not matched by leap post-cutoff)
 
 
+
+
 # Robustness check - Donut RDD
 
-We can run the analysis with different size donuts. This isn't really necessary, since our donut size is defined from first principles (the 0.1 hysterisis on Notes getting unpublished), but let's have a look anyway).
+We can run the analysis with different size donuts. This isn't really necessary, since our donut size is defined from first principles (the 0.01 hysterisis on Notes getting unpublished), but let's have a look anyway).
 
 ```{python}
 #| label: RDD-donut
@@ -899,8 +897,13 @@ Only a cutoff of 0.4 makes sense in terms of the CN publication mechanism. There
 
 ```{python}
 #| label: RDD-sensitivity-cutoff
+DONUT = 0.01 
+donut_mask = (first_notes['intercept'] - CUTOFF).abs() >= DONUT
+fuzzy_sample = first_notes[donut_mask]
+y=fuzzy_sample['if_written_again'].astype(int)
+x=fuzzy_sample['intercept']
 
-# nb we are reusing x and y from the first use of rdrobust
+
 
 c=0.3;robust_rdd(x,y,c) # all ns and inconsistent effect directions
 c=0.35;robust_rdd(x,y,c) # all ns and inconsistent effect directions
@@ -909,7 +912,9 @@ c=0.45;robust_rdd(x[mask],y[mask],c) # all ns and inconsistent effect directions
 
 ```
 
-All these are non-significant and the effect esimates are close to zero
+0.3 and 0.35 are non-significant and the effect esimates are close to zero
+
+the 0.45 cutoff is significant, but the derived bandwidth is too small to be robust, suggesting degenerate model fitting
 
 
 
