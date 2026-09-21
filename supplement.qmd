@@ -53,7 +53,7 @@ from rdrobust import rdrobust, rdplot
 from rddensity import rddensity, rdplotdensity
 import json
 
-from write_helpers import write_macro, write_tabular, save_figure, OUT
+from write_helpers import write_value, write_tabular, save_figure, OUT
 
 # --- Config ---------------------------------------------------------------
 CUTOFF    = 0.4                            # defined by CN system
@@ -250,6 +250,7 @@ rated = pd.read_parquet('./data2026post/' + 'rated_notes_compact.parquet', engin
 
 # check size
 print("Imported data for " + str(len(rated)) + " notes") # 2747570 for 2026 data (was 1,946,619 for 2025 data)
+write_value('numNotes',len(rated['createdAt']<pd.Timestamp(2026, 1, 1)))
 # For RDD we need to remove the notes which don't have enough rating to be helpful, so marking this now
 '''Zahra: I wanted to check which algorithms were used most often. 5 used to be the threshold for getting published if intercept and factor were in the range. If I did not use this criteria, some other algorithms became the top ones (after the core algorithm, of course) which did not have notes eligible for getting published.'''
 # ## UPDATE This now accounts for the change in minimum number of ratings need before a Note published

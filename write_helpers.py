@@ -12,8 +12,8 @@ Two consumers:
    \\newcommand{} macros.
 
 Conventions:
-- `write_macro(name, value)` → appends/updates `\\newcommand{\\name}{value}` in
-  paper-outputs/macros.tex. Manuscript then writes `\\name` inline.
+- `write_value(name, value)` → appends/updates `\\newcommand{\\name}{value}` in
+  paper-outputs/values.tex. Manuscript then writes `\\name` inline.
 - `write_tabular(df, name, ...)` → paper-outputs/<name>.tex, a full `table`
   environment with booktabs. Manuscript does `\\input{paper-outputs/<name>}`.
 - `save_figure(fig, name)` → paper-outputs/<name>.pdf. Manuscript does
@@ -26,7 +26,7 @@ import pandas as pd
 
 OUT = Path(__file__).parent / "paper-outputs"
 OUT.mkdir(exist_ok=True)
-MACROS = OUT / "macros.tex"
+MACROS = OUT / "values.tex"
 
 
 def _fmt(value, digits=3):
@@ -39,7 +39,7 @@ def _fmt(value, digits=3):
     return str(value)
 
 
-def write_macro(name: str, value, digits: int = 3) -> None:
+def write_value(name: str, value, digits: int = 3) -> None:
     line = f"\\newcommand{{\\{name}}}{{{_fmt(value, digits)}}}"
     lines: list[str] = []
     replaced = False
