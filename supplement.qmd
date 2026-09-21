@@ -267,6 +267,9 @@ note_from = pd.Timestamp(2024, 1, 1)
 note_to = pd.Timestamp(2026, 1, 1)
 #(follow up can be at any point)
 
+mask = (rated['createdAt'] >= pd.Timestamp(2024,1,1)) & (rated['createdAt'] < pd.Timestamp(2026,1,1))
+write_value('numNotes2024to2026',len(rated[mask]['createdAt']))
+
 # process data to produce running var and outcome var
 first_notes = get_first_notes(rated, note_from, note_to, CUTOFF,re_auth_thresh = re_auth_thresh)
 
