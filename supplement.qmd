@@ -275,6 +275,9 @@ write_value('numNotes2024to2026',len(rated[mask]['createdAt']))
 # process data to produce running var and outcome var
 first_notes = get_first_notes(rated, note_from, note_to, CUTOFF,re_auth_thresh = re_auth_thresh)
 
+write_value('firstnotes',len(first_notes))
+write_value('nreauthor',len(first_notes[first_notes['if_written_again']]))
+
 
 ```
 We are now also using Notes evaluated by `{python} f"{len(first_notes['decidedBy'].unique())}" ` models
