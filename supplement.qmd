@@ -53,7 +53,7 @@ from rdrobust import rdrobust, rdplot
 from rddensity import rddensity, rdplotdensity
 import json
 
-from write_helpers import write_value, write_tabular, save_figure, OUT
+from write_helpers import write_value, write_tabular, save_figure, write_fragment, OUT
 
 # --- Config ---------------------------------------------------------------
 CUTOFF    = 0.4                            # defined by CN system
