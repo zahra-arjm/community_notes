@@ -812,7 +812,7 @@ ax.margins(x=0.02)
 
 fig.savefig(f'{STEM}_mpl.png', dpi=300, bbox_inches='tight')
 fig.savefig(f'{STEM}_mpl.pdf', bbox_inches='tight')   # vector, for the paper
-fig.savefig('paper-outputs/RDD.png',dpi=300, bbox_inches='tight')
+fig.savefig('paper-outputs/RDD.png',dpi=300, bbox_inches='tight') #https://raw.githubusercontent.com/zahra-arjm/community_notes/main/paper-outputs/RDD.png
 plt.show()
 
 print("consistency check: gap at cutoff should ≈ conventional tau")
