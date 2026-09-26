@@ -5,7 +5,7 @@ abstract: |
   Supplemental material to support the RDD result in Arjmandi-Lari, Z., Mantzarlis, A., Stafford, T. (2025). [Threats to the sustainability of Community Notes on X](https://arxiv.org/abs/2510.00650). arXiv preprint arXiv:2510.00650 
 ---
 
-# Introduction
+# Introduction - this is the right one
 
 Find all of this in the repo <https://github.com/zahra-arjm/community_notes>
 
@@ -13,7 +13,7 @@ This PDF made by a quarto document <supplement.qmd>. The quarto file renders the
 
 To see the code which is running you need to open the .qmd file. As a PDF this shows commentary (like this text) and code outputs (in text, and images).
 
-AI declaration: all the words are human-written, all the logic and claims are human endorsed (by TS, so they may contain errors). The code was co-written with using an AI agent, some comments from the agent are left in the code (invisible in the PDF).
+AI declaration: all the words are human-written, all the logic and claims are human endorsed (by TS, so they may contain errors). The code was co-written using an AI agent, some comments from the agent are left in the code (invisible in the PDF).
 
 ## Topline results and v1-v2 chanegs
 
@@ -61,7 +61,9 @@ plotloc   = 'paper-outputs'                # subfolder to save plots etc
 re_auth_thresh = 2                         # threshold for an author to count as writing again (number of notes)
 POLY = 1                                   # polynomial order for rdrobust (ie linear)
 KERNEL = 'triangular'                      # kernel for rdrobust (default, but make explicit)
-ALIGNMENT = False                          # filter for aligned notes (is conditioning   on a post-treatment outcome, so verboten)
+ALIGNMENT = False                          # filter for aligned notes (is conditioning on a post-treatment outcome, so verboten)
+                                           # which decision models are analysis includes
+models = ['CoreModel (v1.1)', 'ExpansionModel (v1.1)', 'ExpansionPlusModel (v1.1)', 'CoreWithTopicsModel (v1.1)']
 # -------------------------------------------------------------------------
 
 ```
@@ -70,7 +72,7 @@ ALIGNMENT = False                          # filter for aligned notes (is condit
 #| label: functions
 
 
-def get_first_notes(rated, note_from, note_to, cutoff, *, re_auth_thresh = 2):
+def get_first_notes(rated, note_from, note_to, cutoff, *, re_auth_thresh = 2, models = models):
     '''function to define data for analysis - running variable, outcome variable, sample defined by date'''
 
     
@@ -140,11 +142,7 @@ def get_first_notes(rated, note_from, note_to, cutoff, *, re_auth_thresh = 2):
     # add to primary dataframe
     first_notes['if_written_again'] = first_notes['noteAuthorParticipantId'].isin(have_another_note)
     # filter to only notes written by the major algorithms
-    # define models (algorithms to include))
-    #models = ['CoreModel (v1.1)'] # >70% of Notes,
-    #models = ['CoreModel (v1.1)', 'ExpansionModel (v1.1)', 'CoreWithTopicsModel (v1.1)']
-    models = ['CoreModel (v1.1)', 'ExpansionModel (v1.1)', 'ExpansionPlusModel (v1.1)', 'CoreWithTopicsModel (v1.1)']
-    # select on models
+    # select on decision models
     first_notes = first_notes[first_notes['decidedBy'].isin(models)]
     
     print("Now we have " + str(len(first_notes)) + " notes written by our " + str(len(models)) + " choosen algorithms")
@@ -261,8 +259,9 @@ rated['rating_group'] = (rated['numRatings'] > 0)
 # proportion of Notes decided by each algorithm
 rated[rated['rating_group'] == 1]['decidedBy'].value_counts(normalize=True)
 
-#TK tom should make outcome of 4 models a variable for values.tex
-
+counts = rated[rated['rating_group'] == 1]['decidedBy'].value_counts(normalize=True)
+counts[counts.index.isin(models)].sum()
+write_value('modelcoveragepct',counts[counts.index.isin(models)].sum())
 
 # define timeranges for Author's first created note
 note_from = pd.Timestamp(2024, 1, 1)
@@ -274,11 +273,8 @@ write_value('numNotesSample',len(rated[mask]['createdAt']))
 
 # process data to produce running var and outcome var
 first_notes = get_first_notes(rated, note_from, note_to, CUTOFF,re_auth_thresh = re_auth_thresh)
-
 write_value('firstnotes',len(first_notes))
 write_value('nreauthor',len(first_notes[first_notes['if_written_again']]))
-
-#first line for a bash script
 
 
 ```
@@ -330,6 +326,12 @@ plt.xlabel('log (number of ratings)')
 plt.ylabel('Note intercept')
 plt.legend(handles=handles, loc=0)
 plt.savefig('paper-outputs/scatter_numRatings_NoteIntercept.png', dpi=120, bbox_inches='tight')
+
+
+write_value('NMRprop',first_notes['finalRatingStatus'].value_counts(normalize=True)[0])
+write_value('CRHprop',first_notes['finalRatingStatus'].value_counts(normalize=True)[1])
+write_value('CRNHprop',first_notes['finalRatingStatus'].value_counts(normalize=True)[2])
+
 ```
 
 
@@ -377,7 +379,7 @@ ax.legend(frameon=False, loc="upper left")
 ax.set_title("First stage: publication status by intercept")
 
 # ---- numeric verdict, narrow bands ----
-for lo, hi in [(0.35, 0.40), (0.38, 0.40), (0.39, 0.40), (0.40, 0.42)]:
+for lo, hi in [(0.195,0.205),(0.35, 0.40), (0.38, 0.40), (0.39, 0.40), (0.40, 0.42),(0.595,0.605)]:
     m = first_notes["intercept"].between(lo, hi, inclusive="left")
     print(
         f"[{lo:.2f},{hi:.2f}): n={m.sum():6d}  "
@@ -527,7 +529,7 @@ fn = first_notes[["intercept", "ever_published"]].dropna().copy()
 fn["ever_published"] = fn["ever_published"].astype(float)
 
 def first_stage(d):
-    sample = fn[(fn.intercept - CUTOFF).abs() >= d]
+    sample = fn[(fn.intercept - CUTOFF).abs() >= d] #symmetric
     return rdrobust(
         y=sample.ever_published, x=sample.intercept,
         c=CUTOFF, p=POLY, kernel=KERNEL, bwselect="mserd", all=True,
@@ -607,6 +609,7 @@ The OLS serves as a sanity check, but now let's run the full fuzzy RDD
 
 DONUT = 0.01 # ie exclude notes near the cutoff
 donut_mask = (first_notes['intercept'] - CUTOFF).abs() >= DONUT
+
 fuzzy_sample = first_notes[donut_mask]
 y=fuzzy_sample['if_written_again'].astype(int)
 x=fuzzy_sample['intercept']
@@ -813,6 +816,7 @@ ax.margins(x=0.02)
 fig.savefig(f'{STEM}_mpl.png', dpi=300, bbox_inches='tight')
 fig.savefig(f'{STEM}_mpl.pdf', bbox_inches='tight')   # vector, for the paper
 fig.savefig('paper-outputs/RDD.png',dpi=300, bbox_inches='tight') #https://raw.githubusercontent.com/zahra-arjm/community_notes/main/paper-outputs/RDD.png
+
 plt.show()
 
 print("consistency check: gap at cutoff should ≈ conventional tau")
@@ -832,7 +836,15 @@ This also, incidentally, shows the donut cut
 ```{python}
 #| label: RDD-density
 
-binW = 0.02 #h_mse #0.05 #window around cutoff
+# Redefine these for clarity
+DONUT = 0.0 # ie exclude notes near the cutoff
+donut_mask = (first_notes['intercept'] - CUTOFF).abs() >= DONUT
+fuzzy_sample = first_notes[donut_mask]
+y=fuzzy_sample['if_written_again'].astype(int)
+x=fuzzy_sample['intercept']
+
+
+binW = 0.05 # h_mse #0.02 #window around cutoff
 print("Inspecting density with a window of +/o = ", binW)
 
 dens = rddensity(X=x, c=CUTOFF, binoW=binW) # binoW forces window to be 0.38 to 0.42, which is a stricter test of balance around threshold
@@ -848,11 +860,21 @@ print([a for a in dir(dens) if not a.startswith('_')])
 mask = (x >= CUTOFF - binW) & (x <= CUTOFF + binW)
 x_near = x[mask]
 
-# Direct matplotlib histogram — most informative
-plt.hist(x_near, bins=50, edgecolor='black')
-plt.axvline(0.4, color='red', linestyle='--')
-plt.xlabel('intercept'); plt.ylabel('count')
+edges = np.linspace(CUTOFF - binW, CUTOFF + binW, 51)   # 50 bins, width 0.002
+counts, edges, patches = plt.hist(x_near, bins=edges, edgecolor='black')
+
+centres = (edges[:-1] + edges[1:]) / 2
+for c, p in zip(centres, patches):
+    if 0.39 <= c <= 0.41:
+        p.set_facecolor('lightgrey')
+
+plt.axvline(CUTOFF, color='red', linestyle='--')
+plt.xlabel('helpfulness score'); plt.ylabel('count')
+plt.savefig('paper-outputs/RDD-density.png', dpi=300, bbox_inches='tight')
 plt.show()
+
+
+
 ```
 
 The density does progressively decrease up to the cutoff, but there are but no signs of sub-threshold notes being shifted to above threshold (decline not matched by leap post-cutoff)
