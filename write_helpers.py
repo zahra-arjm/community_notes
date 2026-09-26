@@ -84,3 +84,13 @@ def save_figure(fig, name: str, dpi: int = 200) -> Path:
     path = OUT / f"{name}.pdf"
     fig.savefig(path, bbox_inches="tight", dpi=dpi)
     return path
+
+def write_fragment(name: str, text: str) -> Path:
+ """Write a self-contained .tex fragment to paper-outputs/frag-<name>.tex.
+ Strips trailing whitespace and appends one newline so \\input won't
+ glue against the next character. LaTeX escaping is the caller's
+ responsibility (use \\%, \\&, etc.).
+ """
+ path = OUT / f"frag-{name}.tex"
+ path.write_text(text.rstrip() + "\n")
+ return path

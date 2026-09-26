@@ -681,13 +681,34 @@ print(f"\nTie-out check:  RF / FS = {rf_c/fs_c:+.4f}   (should ≈ LATE at commo
 
 ```
 
+```{python}
+#| label: rd-prose  
+#| output: asis  
+frag_main = (  
+    f"The RD robust method identifies an MSE-optimal bandwidth of "  
+    f"$h = {h_mse:.3f}$ and provides an estimated treatment effect of "  
+    f"$\\hat{{\\tau}} = {tau:+.3f}$. This reflects a {tau*100:+.1f} "  
+    "percentage point increase in the probability of writing a second "  
+    "note if an author's first note is published (conventional "  
+    "local-linear estimator; robust bias-corrected 95\\% CI "  
+    f"$[{ci_lo*100:+.1f}, {ci_hi*100:+.1f}]$, $p = {p_rob:.2f}$; "  
+    "Calonico, Cattaneo, \\& Titiunik, 2014)."  
+)  
+write_fragment("rd-main-estimate", frag_main)  
+print(frag_main)  
+print()
 
-The RD robust method identifies a MSE-optimal bandwidth of h = `{python} f"{h_mse:.3f}"`), and provides an estimated treatmennt effect of  ↓ 
-$\hat{\tau}$ = `{python} f"{tau:+.3f}"`. This is reflects `{python} f"{tau*100:+.1f}"`percentage point increase in the probability of writing a second note if an author's first note is published (conventional local-linear estimator; robust bias-corrected 95% CI
-[`{python} f"{ci_lo*100:+.1f}"`, `{python} f"{ci_hi*100:+.1f}"`],
-p = `{python} f"{p_rob:.2f}"`). Calonico et al., 2014
+frag_lift = (  
+    "The rate of republishing for notes which fall below the cutoff is "  
+    f"$\\sim {base_local*100:.1f}\\%$. The treatment effect of "  
+    f"{tau*100:.1f}\\,pp implies a {rel_lift*100:.1f}\\% relative lift "  
+    "over the counterfactual baseline; however, this difference is "  
+    "non-significant."  
+)  
+write_fragment("rd-baseline-lift", frag_lift)  
+print(frag_lift)
+```
 
-The rate of republishing for Notes which fall before the cutoff is ~`{python} f"{base_local:.1%}"`. The treatment effect of `{python} f"{tau*100:.1f}"`pp, imnplies a `{python} f"{rel_lift:.1%}"` relative lift over the counterfactual baseline, however this difference is non-significant.
 
 
 # Showing an illustrative RDD plot
@@ -870,7 +891,7 @@ for c, p in zip(centres, patches):
 
 plt.axvline(CUTOFF, color='red', linestyle='--')
 plt.xlabel('helpfulness score'); plt.ylabel('count')
-plt.savefig('paper-outputs/RDD-density.png', dpi=300, bbox_inches='tight')
+plt.savefig('paper-outputs/RDD-density.png', dpi=300, bbox_inches='tight') #https://raw.githubusercontent.com/zahra-arjm/community_notes/main/paper-outputs/RDD-density.png
 plt.show()
 
 
