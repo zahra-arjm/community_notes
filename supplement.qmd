@@ -282,7 +282,7 @@ write_value('nreauthor',len(first_notes[first_notes['if_written_again']]))
 
 
 ```
-We are now also using Notes evaluated by `{python} f"{len(first_notes['decidedBy'].unique())}" ` models
+We are now also using Notes evaluated by ```{python} f"{len(first_notes['decidedBy'].unique())}" ``` models
 
 # Diagnostic Plots {#sec-plots}
 
@@ -812,7 +812,7 @@ ax.margins(x=0.02)
 
 fig.savefig(f'{STEM}_mpl.png', dpi=300, bbox_inches='tight')
 fig.savefig(f'{STEM}_mpl.pdf', bbox_inches='tight')   # vector, for the paper
-
+fig.savefig('paper-outputs/RDD.png',dpi=300, bbox_inches='tight')
 plt.show()
 
 print("consistency check: gap at cutoff should ≈ conventional tau")
