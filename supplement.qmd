@@ -794,7 +794,7 @@ Now with the local-lineat fits (over the rdrobust defined window), which more ac
 
 # use rdplot to get parameters, which we're going to redraw in matplotlib
 out = rdplot(y=y, x=x, c=CUTOFF, kernel=KERNEL,
-             binselect='es', ci=95, hide=True)
+             binselect='es', ci=95, hide=True, nbins=[27,9])
 
 b, pl = out.vars_bins, out.vars_poly
 
@@ -827,9 +827,9 @@ ax.axvline(CUTOFF, ls='--', color='k', lw=0.8)
 
 ax.set_xlim(left=0.27, right=0.53)
 #ax.set_xlim(c - 4*h_mse, c + 4*h_mse) 
-ax.set_ylim(0,1)
+ax.set_ylim(0.5,1)
 
-ax.set_xlabel('note intercept')
+ax.set_xlabel('note helpfulness score')
 ax.set_ylabel('P(author writes again)')
 ax.spines[['top', 'right']].set_visible(False)
 ax.margins(x=0.02)
