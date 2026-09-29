@@ -234,6 +234,22 @@ def robust_rdd(x,y,c, *, p = 1, kernel = "triangular", fuzzy = None):
 
     return fit
 
+def _pull(r):
+    """Extract (coef, se, ci_lo, ci_hi, pval, h, N) from an rdrobust result.
+
+    Wrapped defensively — rdrobust's Python port has shifted attribute names
+    across versions. Fix once here if a rebuild breaks.
+    """
+    coef = float(r.coef.loc["Conventional"].iloc[0])
+    se_r = float(r.se.loc["Robust"].iloc[0])
+    ci   = r.ci.loc["Robust"]
+    lo, hi = float(ci.iloc[0]), float(ci.iloc[1])
+    p    = float(r.pv.loc["Robust"].iloc[0])
+    h    = float(r.bws.loc["h", "left"])
+    N    = int(r.N_h[0] + r.N_h[1])
+    return coef, se_r, lo, hi, p, h, N
+
+
 ```
 
 We fix the cumsum=>2 issue, so we have authors who write 2 (not 3) notes as our outcome variable
@@ -631,6 +647,23 @@ fit = robust_rdd(y=y, x=x,c=CUTOFF,
     p=POLY, kernel=KERNEL,
     fuzzy=fuzzy_sample.ever_published,
     )
+
+coef, se, lo, hi, pval, h, Nh = _pull(fit)
+
+main_row = pd.DataFrame([{
+    "coef (pp)":   coef * 100,
+    "SE (pp)":     se   * 100,
+    "CI lo (pp)":  lo   * 100,
+    "CI hi (pp)":  hi   * 100,
+    "p (robust)":  pval,
+    "h":           h,
+    "N in h":      Nh,
+}])
+write_tabular(main_row, "tab-main",
+              caption="Main sharp-RDD estimate.",
+              precision=3)
+
+main_row
 
 ```
 
