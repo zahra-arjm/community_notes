@@ -411,7 +411,7 @@ This is now signficant with a wide window (0.08, it was non-significant at 0.05)
 ```{python}
 #| label: OLS-RDD
 
-bandwidth = 0.08 #window around cutoff
+bandwidth = 0.064 #0.08 #window around cutoff, h_mse = 0.064
 print("bandwidth = ", bandwidth)
 DONUT = 0.01 # exluding notes near cutoff, we'll change later
 
@@ -461,12 +461,25 @@ print(f"\nEstimated Treatment Effect at the Cutoff: {estimated_effect:.4f}")
 
 print("I think we can intepret this as a % change the chance of authoring again if published")
 
-p_value_treatment = rdd_model.pvalues['treatment']
-t_statistic_treatment = rdd_model.tvalues['treatment']
+p_val = rdd_model.pvalues['treatment']
+t_stat = rdd_model.tvalues['treatment']
 
 # print out p value and t-statistic for treatment
-print(f"\nP-value for treatment: {p_value_treatment:.4f}")
-print(f"T-statistic for treatment: {t_statistic_treatment:.4f}")
+print(f"\nP-value for treatment: {p_val:.4f}")
+print(f"T-statistic for treatment: {t_stat:.4f}")
+
+dfree = int(rdd_model.df_resid)   # n within bandwidth minus params
+
+write_fragment(
+    "ols-report",
+    f"A bandwith of {bandwidth} identifies "
+    f"{data['treatment'].sum()} treated Notes"
+    f" and {data['treatment'].count() - data['treatment'].sum()} control Notes. "
+    f"The OLS estimated treatment effect at the cutoff is {estimated_effect:.4f}, "
+    f"$p = {p_val:.3f}$, $t(df) = {t_stat:.3f}({dfree})$",
+)
+
+
 
 ```
 
@@ -691,8 +704,7 @@ frag_main = (
     "percentage point increase in the probability of writing a second "  
     "note if an author's first note is published (conventional "  
     "local-linear estimator; robust bias-corrected 95\\% CI "  
-    f"$[{ci_lo*100:+.1f}, {ci_hi*100:+.1f}]$, $p = {p_rob:.2f}$; "  
-    "Calonico, Cattaneo, \\& Titiunik, 2014)."  
+    f"$[{ci_lo*100:+.1f}, {ci_hi*100:+.1f}]$, $p = {p_rob:.2f}$"  
 )  
 write_fragment("rd-main-estimate", frag_main)  
 print(frag_main)  
@@ -702,8 +714,7 @@ frag_lift = (
     "The rate of republishing for notes which fall below the cutoff is "  
     f"$\\sim {base_local*100:.1f}\\%$. The treatment effect of "  
     f"{tau*100:.1f}\\,pp implies a {rel_lift*100:.1f}\\% relative lift "  
-    "over the counterfactual baseline; however, this difference is "  
-    "non-significant."  
+    "over the counterfactual baseline. Note however that while this lift is numerically positive it is not statistically significant."  
 )  
 write_fragment("rd-baseline-lift", frag_lift)  
 print(frag_lift)
@@ -952,17 +963,45 @@ Only a cutoff of 0.4 makes sense in terms of the CN publication mechanism. There
 ```{python}
 #| label: RDD-sensitivity-cutoff
 DONUT = 0.01 
-donut_mask = (first_notes['intercept'] - CUTOFF).abs() >= DONUT
-fuzzy_sample = first_notes[donut_mask]
-y=fuzzy_sample['if_written_again'].astype(int)
-x=fuzzy_sample['intercept']
 
+results = pd.DataFrame(columns = ['threshold','h_mse','tau','p_robust','ci_robust_lo','ci_robust_hi'])
 
+rows=[]
 
-c=0.3;robust_rdd(x,y,c) # all ns and inconsistent effect directions
-c=0.35;robust_rdd(x,y,c) # all ns and inconsistent effect directions
-mask=x>0.4
-c=0.45;robust_rdd(x[mask],y[mask],c) # all ns and inconsistent effect directions
+for c in [0.3,0.35,0.4,0.45]:
+
+    donut_mask = (first_notes['intercept'] - c).abs() >= DONUT
+    fuzzy_sample = first_notes[donut_mask]
+    y=fuzzy_sample['if_written_again'].astype(int)
+    x=fuzzy_sample['intercept']
+
+    fit = robust_rdd(x,y,c,p=POLY) # all ns and inconsistent effect directions
+
+    rows.append({
+        "threshold": c,
+        "h_mse": float(fit.bws.iloc[0, 0]),   # h left (= right under default mserd)
+        "tau": float(fit.coef.iloc[0, 0]),    # conventional point estimate
+        "p_robust": float(fit.pv.iloc[2, 0]),
+        "ci_robust_lo": float(fit.ci.iloc[2, 0]),
+        "ci_robust_hi": float(fit.ci.iloc[2, 1]),
+        "n_eff": int(fit.N_h[0] + fit.N_h[1]),  # obs within bandwidth
+    })
+
+    
+results = pd.DataFrame(rows)
+
+tbl = results.assign(
+    threshold=results.threshold.map("{:.2f}".format),
+    ci=lambda d: ("[" + d.ci_robust_lo.map("{:.3f}".format)
+                  + ", " + d.ci_robust_hi.map("{:.3f}".format) + "]")
+)[["threshold", "h_mse", "tau", "p_robust", "ci", "n_eff"]]
+tbl.columns = ["Cutoff", "$h$", r"$\hat\tau$", "$p$ (robust)",
+               r"95\% CI (robust)", "$N_{\\mathrm{eff}}$"]
+
+write_tabular(tbl, "placebo-rdd",
+              caption="sharp RDD, donut of 0.1, with thresholds of 0.30, 0.35, 0.40 and 0.45",   # your prose
+              label="placebo-rdd", precision=3)
+
 
 ```
 
