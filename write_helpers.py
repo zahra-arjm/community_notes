@@ -55,6 +55,7 @@ def write_value(name: str, value, digits: int = 3) -> None:
     MACROS.write_text("\n".join(lines) + "\n")
 
 
+# The stars on \table* make the table span both columns
 def write_tabular(
     df: pd.DataFrame,
     name: str,
@@ -67,12 +68,12 @@ def write_tabular(
     styler = df.style.hide(axis="index").format(precision=precision)
     body = styler.to_latex(hrules=True, column_format=column_format)
     wrapped = (
-        "\\begin{table}[htbp]\n"
+        "\\begin{table*}[htbp]\n"
         "\\centering\n"
         f"\\caption{{{caption}}}\n"
         f"\\label{{tab:{label}}}\n"
         f"{body}"
-        "\\end{table}\n"
+        "\\end{table*}\n"
     )
     path = OUT / f"{name}.tex"
     path.write_text(wrapped)

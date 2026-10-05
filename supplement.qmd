@@ -650,20 +650,23 @@ fit = robust_rdd(y=y, x=x,c=CUTOFF,
 
 coef, se, lo, hi, pval, h, Nh = _pull(fit)
 
-main_row = pd.DataFrame([{
-    "coef (pp)":   coef * 100,
-    "SE (pp)":     se   * 100,
-    "CI lo (pp)":  lo   * 100,
-    "CI hi (pp)":  hi   * 100,
-    "p (robust)":  pval,
-    "h":           h,
-    "N in h":      Nh,
+# tab-main: same headings, format, order, and raw units as tab:placebo-rdd.
+# SE dropped (co-determined with the robust CI we report); no pp rescaling.
+main_tbl = pd.DataFrame([{
+    r"$h$":                h,
+    r"$\hat\tau$":         coef,
+    "$p$ (robust)":        pval,
+    r"95\% CI (robust)":   "[{:.3f}, {:.3f}]".format(lo, hi),
+    r"$N in h$": Nh,
 }])
-write_tabular(main_row, "tab-main",
-              caption="Main sharp-RDD estimate.",
-              precision=3)
 
-main_row
+write_tabular(main_tbl, "tab-main",
+              caption="Main fuzzy-RDD estimate.",
+              label="tab-main", precision=3)
+
+main_tbl
+
+
 
 ```
 
@@ -1029,7 +1032,7 @@ tbl = results.assign(
                   + ", " + d.ci_robust_hi.map("{:.3f}".format) + "]")
 )[["threshold", "h_mse", "tau", "p_robust", "ci", "n_eff"]]
 tbl.columns = ["Cutoff", "$h$", r"$\hat\tau$", "$p$ (robust)",
-               r"95\% CI (robust)", "$N_{\\mathrm{eff}}$"]
+               r"95\% CI (robust)", "$N in h$"]
 
 write_tabular(tbl, "placebo-rdd",
               caption="sharp RDD, donut of 0.1, with thresholds of 0.30, 0.35, 0.40 and 0.45",   # your prose
