@@ -657,7 +657,7 @@ main_tbl = pd.DataFrame([{
     r"$\hat\tau$":         coef,
     "$p$ (robust)":        pval,
     r"95\% CI (robust)":   "[{:.3f}, {:.3f}]".format(lo, hi),
-    r"$N in h$": Nh,
+    "N in h": Nh,
 }])
 
 write_tabular(main_tbl, "tab-main",
@@ -1032,7 +1032,7 @@ tbl = results.assign(
                   + ", " + d.ci_robust_hi.map("{:.3f}".format) + "]")
 )[["threshold", "h_mse", "tau", "p_robust", "ci", "n_eff"]]
 tbl.columns = ["Cutoff", "$h$", r"$\hat\tau$", "$p$ (robust)",
-               r"95\% CI (robust)", "$N in h$"]
+               r"95\% CI (robust)", "N in h"]
 
 write_tabular(tbl, "placebo-rdd",
               caption="sharp RDD, donut of 0.1, with thresholds of 0.30, 0.35, 0.40 and 0.45",   # your prose
@@ -1086,3 +1086,4 @@ x = fn['intercept'].to_numpy(dtype=float)
 fit = robust_rdd(x,y,CUTOFF)
 
 ```
+
