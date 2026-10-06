@@ -1137,4 +1137,4 @@ main_tbl
 
 ```
 
-Outcome: same as for the 4 model version, numerically positive estimate, but not statistically significantly
+Outcome: same as for the 4 model version, numerically positive estimate,. but not statistically significantly
