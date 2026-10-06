@@ -1096,8 +1096,8 @@ Minimal code to rederive RDD result
 
 # --- Config ---------------------------------------------------------------
 CUTOFF =0.4
-re_auth_thresh = 2                         # threshold for an author to count as writing again 
-models = ['CoreModel (v1.1)']
+re_auth_thresh = 3                         # threshold for an author to count as writing again 
+#models = ['CoreModel (v1.1)']
 # -------------------------------------------------------------------------
 
 first_notes = get_first_notes(rated, note_from, note_to, CUTOFF,re_auth_thresh = re_auth_thresh,models =models)
