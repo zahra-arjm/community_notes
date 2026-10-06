@@ -5,7 +5,7 @@ abstract: |
   Supplemental material to support the RDD result in Arjmandi-Lari, Z., Mantzarlis, A., Stafford, T. (2025). [Threats to the sustainability of Community Notes on X](https://arxiv.org/abs/2510.00650). arXiv preprint arXiv:2510.00650 
 ---
 
-# Introduction - this is the right one
+# Introduction
 
 Find all of this in the repo <https://github.com/zahra-arjm/community_notes>
 
@@ -20,8 +20,6 @@ AI declaration: all the words are human-written, all the logic and claims are hu
 - Since v1 we adopt a more sophisticated RDD method, fix bugs and are stricter on best practice with respect to causal inference. There is still a positive effect, but it is not significant (confidence bounds overlap an effect of 0).
 
 - A zero-indexing bug meant previously we were looking at the effect of first note status on 3rd note publication. This is now fixed.
-
-- There is (remains) a robust effect for authoring a 3rd note (`have_another_note = note_counts[(note_counts >= 3)]`).
 
 - We discover the RDD is not sharp, due to the fact that we have the score (intercept) from the data cut off point, which is NOT the intercept at the point when the note was or was not published (scores continuing to evolve post publication). This non-sharpness can be dealt with by running a fuzzy-RDD which accounts for the change in probabilities of being published at different intercept scores (there is still a discontinuity in these probailities).
 
@@ -294,7 +292,9 @@ write_value('nreauthor',len(first_notes[first_notes['if_written_again']]))
 
 
 ```
-We are now also using Notes evaluated by ```{python} f"{len(first_notes['decidedBy'].unique())}" ``` models
+
+We are now also using Notes evaluated by `{python} len(first_notes['decidedBy'].unique())`
+ models
 
 # Diagnostic Plots {#sec-plots}
 
