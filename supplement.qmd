@@ -262,7 +262,8 @@ rated = pd.read_parquet('./data2026post/' + 'rated_notes_compact.parquet', engin
 
 # check size
 print("Imported data for " + str(len(rated)) + " notes") # 2747570 for 2026 data (was 1,946,619 for 2025 data)
-write_value('numNotes',len(rated['createdAt']<pd.Timestamp(2026, 1, 1)))
+n = int((rated['createdAt']<pd.Timestamp(2026, 6, 2)).sum())
+write_value('numNotes', f"{n:,}") 
 # For RDD we need to remove the notes which don't have enough rating to be helpful, so marking this now
 '''Zahra: I wanted to check which algorithms were used most often. 5 used to be the threshold for getting published if intercept and factor were in the range. If I did not use this criteria, some other algorithms became the top ones (after the core algorithm, of course) which did not have notes eligible for getting published.'''
 # ## UPDATE This now accounts for the change in minimum number of ratings need before a Note published
@@ -283,12 +284,15 @@ note_to = pd.Timestamp(2026, 1, 1)
 #(follow up can be at any point)
 
 mask = (rated['createdAt'] >= pd.Timestamp(2024,1,1)) & (rated['createdAt'] < pd.Timestamp(2026,1,1))
-write_value('numNotesSample',len(rated[mask]['createdAt']))
+n = len(rated[mask]['createdAt'])
+write_value('numNotesSample',f"{n:,}")
 
 # process data to produce running var and outcome var
 first_notes = get_first_notes(rated, note_from, note_to, CUTOFF,re_auth_thresh = re_auth_thresh)
-write_value('firstnotes',len(first_notes))
-write_value('nreauthor',len(first_notes[first_notes['if_written_again']]))
+n=len(first_notes)
+write_value('firstnotes',f"{n:,}")
+n=len(first_notes[first_notes['if_written_again']])
+write_value('nreauthor',f"{n:,}")
 
 
 ```
